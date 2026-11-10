@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RentRelay — Campus rentals, made simple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topline">✦ A smarter way to share on campus</div>
+<header><a class="logo" href="#">R<span>R</span> rentrelay</a><nav><a href="#explore">Explore</a><a href="#how">How it works</a><a href="#trust">Trust & safety</a></nav><button class="primary" id="login">Log in</button></header>
+<main>
+<section class="hero"><div><span class="eyebrow">THE CAMPUS RENTAL MARKETPLACE</span><h1>Need it for a while?<br><em>Rent it nearby.</em></h1><p>Find useful things shared by students around your campus. Borrow for the days you need, return with care.</p><div class="actions"><a class="primary" href="#explore">Explore categories ↗</a><button class="secondary" id="listHero">List an item</button></div><small class="hero-note">Student-first · Campus pickup · Clear rental details</small></div><div class="hero-art"><div class="hero-circle"></div><div class="hero-product"><span>📚</span><b>Useful things, shared.</b><small>Find your next campus essential</small></div><div class="float-tag tag1">🥼 Lab essentials</div><div class="float-tag tag2">🏸 Sports gear</div></div></section>
+<section class="explore" id="explore"><div class="section-head"><div><span class="eyebrow">BROWSE BY CATEGORY</span><h2>Explore what you need.</h2><p>Choose a category to discover items available for rent.</p></div><span class="sample">Sample listings · Demo campus</span></div>
+<div class="category-grid" id="categoryGrid">
+<button class="category-card study" data-cat="Study Materials"><span class="cat-emoji">✏️</span><span><b>Study Materials</b><small>Notes, stationery, calculators</small></span><i>↗</i></button>
+<button class="category-card books" data-cat="Books & Copies"><span class="cat-emoji">📚</span><span><b>Books & Copies</b><small>Textbooks, notebooks, novels</small></span><i>↗</i></button>
+<button class="category-card lab" data-cat="Lab Essentials"><span class="cat-emoji">🥼</span><span><b>Lab Essentials</b><small>Lab coats, practical items</small></span><i>↗</i></button>
+<button class="category-card indoor" data-cat="Indoor Games"><span class="cat-emoji">♟️</span><span><b>Indoor Games</b><small>Chess, carrom, board games</small></span><i>↗</i></button>
+<button class="category-card outdoor" data-cat="Outdoor Sports"><span class="cat-emoji">🏸</span><span><b>Outdoor Sports</b><small>Rackets, balls, sports gear</small></span><i>↗</i></button>
+<button class="category-card kitchen" data-cat="Utensils & Kitchen"><span class="cat-emoji">🍳</span><span><b>Utensils & Kitchen</b><small>Kettle, lunch box, cookware</small></span><i>↗</i></button>
+</div>
+<div class="catalog hidden" id="catalog"><div class="catalog-top"><div><button class="back" id="back">← All categories</button><span class="eyebrow" id="catalogEyebrow">CATEGORY</span><h2 id="catalogTitle"></h2><p id="catalogDesc"></p></div><div class="catalog-controls"><input id="search" placeholder="Search in this category"><select id="sort"><option value="recommended">Recommended</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></div></div>
+<div class="subcats" id="subcats"></div><div class="products" id="products"></div><p class="empty hidden" id="empty">No items found in this category. Try another search.</p></div>
+</section>
+<section class="how" id="how"><span class="eyebrow">SIMPLE BY DESIGN</span><h2>Borrow in three easy steps.</h2><div class="steps"><article><b>01</b><div>⌕</div><h3>Explore items</h3><p>Choose a category and find what you need.</p></article><article><b>02</b><div>↗</div><h3>Request your dates</h3><p>Check the price and request a rental period.</p></article><article><b>03</b><div>✓</div><h3>Meet & return</h3><p>Inspect the item, meet on campus and return on time.</p></article></div></section>
+<section class="trust" id="trust"><span class="eyebrow">BUILT AROUND ACCOUNTABILITY</span><h2>Clear details. Better sharing.</h2><p>Our planned rental journey keeps item condition, booking details and handover confirmations together.</p><div class="trust-points"><span>✓ Student verification planned</span><span>✓ Before-and-after condition records</span><span>✓ Booking history and clear rental terms</span></div></section>
+</main><footer><b class="logo">RR rentrelay</b><p>Borrow what you need. Earn from what you own.</p><small>© 2026 RentRelay · Working name, subject to brand clearance.</small></footer>
+<div class="overlay hidden" id="overlay"><div class="modal"><button class="close" id="close">×</button><div id="modalBody"></div></div></div><div class="toast" id="toast"></div>
+<script src="app.js"></script></body></html>
