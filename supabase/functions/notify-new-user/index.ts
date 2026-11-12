@@ -7,7 +7,9 @@ Deno.serve(async (req) => {
   const supplied = req.headers.get("x-rentrelay-webhook-secret");
   if (!expected || supplied !== expected) return new Response("Unauthorized", { status: 401 });
   const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (!resendKey) return new Response("Email provider not configured", { status: 500 });
+  const adminEmail = Deno.env.get("RENTRELAY_ADMIN_EMAIL");
+  const fromEmail = Deno.env.get("RENTRELAY_FROM_EMAIL");
+  if (!resendKey || !adminEmail || !fromEmail) return new Response("Email provider or recipient not configured", { status: 500 });
   const payload = await req.json();
   const user = payload.record;
   if (!user?.id) return new Response("Missing user record", { status: 400 });
@@ -20,10 +22,10 @@ Deno.serve(async (req) => {
     method: "POST",
     headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: "RentRelay <onboarding@resend.dev>",
-      to: ["pumakant246@gmail.com"],
+      from: `RentRelay <${fromEmail}>`,
+      to: [adminEmail],
       subject: "New RentRelay user registered",
-      text: `A new user verified their email on RentRelay.\nName: ${meta.full_name ?? "Not provided"}\nEmail: ${user.email ?? "Not provided"}\nMobile (not verified): ${meta.mobile ?? "Not provided"}\nUser ID: ${user.id}\nCreated at: ${created}`
+      text: `A new user verified their email on RentRelay.\nName: ${meta.full_name ?? "Not provided"}\nEmail: ${user.email ?? "Not provided"}\nCreated at: ${created}`
     })
   });
   if (!response.ok) return new Response(await response.text(), { status: 502 });
