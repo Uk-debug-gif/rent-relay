@@ -1,82 +1,69 @@
-# RentRelay — project setup and status
+# RentRelay — project setup and current status
 
-RentRelay is a campus peer-to-peer rental marketplace prototype. The frontend includes a sample catalogue, category browsing, search, sorting, item details, a demo rental-price calculator, signup/login screens and a listing form.
+RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email OTP signup/login, and a public student listing form.
 
-## Current authentication behaviour
+## What works in the frontend
 
-- Signup collects a mobile number, email address and full name.
-- **Verification code is sent to the email address, not by SMS.**
-- The mobile number is saved as profile metadata but is **not verified**.
-- Returning users log in with an email verification code.
-- A verified account receives a generated username in the profiles table.
-- Listing submission requires an authenticated account and connected Supabase project.
+- Browse the sample catalogue by category and subcategory.
+- Search item titles, categories, conditions and descriptions.
+- Filter by minimum and maximum daily price; sort by price or recent live listings.
+- View item details and calculate an estimated rental total.
+- Submit a listing without signing in, including a photo and pickup location, once Supabase is configured.
+- Create an account or sign in using email OTP. Mobile number is collected as contact information but is not SMS-verified.
+- Live student listings are loaded from Supabase when the project is connected.
 
-## Step 1 — Create a Supabase project
+## Important prototype limitations
 
-1. Open https://supabase.com/ and create an account.
-2. Create a new project and choose a strong database password. Save it privately.
-3. Wait until the project is ready.
-4. In Project Settings → API, copy the **Project URL** and the **publishable/anon public key**.
-5. Never share the database password, service-role key or secret keys. Do not put them in frontend JavaScript.
+- Catalogue entries included in the source are **demo/sample items**, not confirmed real offers.
+- The item detail “Request to rent” control is a **calculator/demo interaction only**. It does not contact an owner, create a booking, or reserve availability.
+- Online payments, deposits, refunds, booking approvals, cancellations, messaging, ratings/reviews, moderation workflows and dispute handling are not implemented.
+- Email OTP verifies the email address only. A mobile number is not verified.
+- Anonymous listings are allowed by the current database policy. The listing form does not establish who owns the item; do not treat a listing as verified.
+- Public listing photos are served from a public Supabase Storage bucket. Do not upload sensitive or private images.
 
-## Step 2 — Create the database tables
+## 1. Create a Supabase project
 
-1. In the Supabase dashboard, open SQL Editor.
-2. Open this repository's `supabase/schema.sql`.
-3. Copy the complete SQL into a new SQL query and click Run.
-4. Confirm that `listings` and `profiles` tables exist in Table Editor.
+1. Create a project at https://supabase.com/.
+2. In Project Settings → API, copy the Project URL and the publishable/anon public key.
+3. Never put a database password, service-role key or secret key in frontend code or GitHub.
 
-RLS is enabled. Public visitors can read listings. Authenticated users can insert listings only when `owner_id` matches their own auth user ID. Owners can update/delete their own listings. Users can read only their own profile.
+## 2. Create / update the database
 
-## Step 3 — Configure email OTP
+1. Open Supabase SQL Editor.
+2. Run the complete contents of `supabase/schema.sql`.
+3. Confirm that `listings` and `profiles` tables exist.
+4. The schema enables row-level security, allows public reads and anonymous/authenticated listing inserts, and allows authenticated owners to update/delete only rows associated with their user ID. Anonymous rows have no owner account.
+
+## 3. Configure email OTP
 
 1. Open Authentication → Sign In / Providers → Email and enable email authentication.
-2. Configure signup confirmation and login email OTP templates to include the token, e.g. `Your RentRelay verification code is {{ .Token }}`.
-3. For real users, configure a custom SMTP provider under Authentication → SMTP Settings. Supabase's default sender has restrictive testing limits.
-4. Add the GitHub Pages URL to Authentication → URL Configuration → Site URL / Redirect URLs as appropriate.
+2. Configure email templates to include the OTP token.
+3. For real users, configure a custom SMTP provider and appropriate rate limits.
+4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs.
 
-## Step 4 — Connect the frontend
+## 4. Connect the frontend
 
-In `app.js`, replace only `SUPABASE_URL` and `SUPABASE_ANON_KEY` with the project's public values. Never use the service-role key in `app.js`. Commit the change, wait for GitHub Pages to deploy and hard-refresh the website.
+In `app.js`, replace only `SUPABASE_URL` and `SUPABASE_ANON_KEY` with the project's public URL and public anon/publishable key. Never use the service-role key in browser code. Commit the change and wait for GitHub Pages to deploy.
 
-## Step 5 — Optional admin email on new verified users
+## 5. Optional admin email notification
 
-1. Deploy `supabase/functions/notify-new-user/index.ts` as an Edge Function named `notify-new-user`.
-2. Set Edge Function secrets `RESEND_API_KEY` and `RENTRELAY_WEBHOOK_SECRET`.
-3. Verify a sender domain with Resend and use that verified sender address in the function.
-4. Create a Database Webhook on schema `auth`, table `users`, event **UPDATE**, targeting the Edge Function URL.
-5. Add header `x-rentrelay-webhook-secret` with the same secret value.
+The optional Supabase Edge Function lives in `supabase/functions/notify-new-user/`. It requires server-side secrets and a verified sender domain. Keep all such secrets in Supabase Function Secrets, never in frontend code.
 
-The function notifies only when email changes from unverified to verified. Never put the Resend key or webhook secret in frontend code or GitHub.
+## Pre-launch checklist
 
-## Not implemented yet
-
-- SMS OTP / verified mobile numbers.
-- Real booking requests, owner approval, cancellations or availability calendar.
-- Online payments, refunds, deposits or dispute handling.
-- Listing image upload/storage.
-- Production-grade identity checks, moderation and abuse reporting.
-- Renter-owner messaging.
-
-The item detail request button is a **demo only**. It does not send a booking request or reserve an item. Sample catalogue items are not real offers.
-
-## Test checklist
-
-- [ ] Home page loads without a JavaScript console error.
-- [ ] Navigation and mobile menu work.
-- [ ] Categories and subcategory filters work.
-- [ ] Search and price sorting work.
-- [ ] Product cards open correct item details.
-- [ ] Rental-day controls update total and return date.
-- [ ] Log in opens login; signup link opens signup.
-- [ ] List an item opens signup/login when signed out.
-- [ ] After Supabase setup, email OTP signup/login succeeds.
-- [ ] Authenticated user can create a listing and it appears in catalogue.
-- [ ] Unauthenticated user cannot insert a listing directly (RLS check).
-- [ ] Admin email is sent only after email verification and webhook setup.
+- [ ] Configure Supabase URL and public key.
+- [ ] Run the latest `supabase/schema.sql`.
+- [ ] Configure email OTP and production SMTP.
+- [ ] Test anonymous listing submission and image upload.
+- [ ] Test signup, login, and profile creation.
+- [ ] Test category/search/price filters on desktop and mobile.
+- [ ] Add a real booking-request flow with owner approval and availability.
+- [ ] Add verified ownership/contact controls, reporting and moderation before opening to a wider campus.
+- [ ] Add payment, refund and dispute processes only after the rental workflow and policies are defined.
+- [ ] Run browser, accessibility, security and performance testing on real devices.
 
 ## Deploy
 
 GitHub Pages: https://uk-debug-gif.github.io/rent-relay/
 
-After changes reach `main`, wait for GitHub Pages to publish. On desktop, use `Command + Shift + R` for a hard refresh.
+After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to bypass cached files (Mac: Command + Shift + R).
