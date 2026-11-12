@@ -47,7 +47,7 @@ In `app.js`, replace only `SUPABASE_URL` and `SUPABASE_ANON_KEY` with the projec
 
 ## 5. Optional admin email notification
 
-The optional Supabase Edge Function lives in `supabase/functions/notify-new-user/`. It requires server-side secrets and a verified sender domain. Keep all such secrets in Supabase Function Secrets, never in frontend code.
+The optional Supabase Edge Function lives in `supabase/functions/notify-new-user/`. Configure these server-side Supabase Function Secrets: `RENTRELAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RENTRELAY_ADMIN_EMAIL` and `RENTRELAY_FROM_EMAIL` (a sender address verified with your email provider). Keep all values in Supabase Function Secrets, never in frontend code. The notification intentionally avoids including the user's mobile number or internal user ID.
 
 ## Pre-launch checklist
 
