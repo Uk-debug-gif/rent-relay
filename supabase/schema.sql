@@ -39,6 +39,9 @@ create table if not exists public.profiles (
   email text,
   created_at timestamptz not null default now()
 );
+alter table public.profiles add column if not exists terms_accepted boolean not null default false;
+alter table public.profiles add column if not exists terms_version text;
+alter table public.profiles add column if not exists terms_accepted_at timestamptz;
 alter table public.profiles enable row level security;
 drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile" on public.profiles for select to authenticated using (auth.uid() = id);
@@ -65,18 +68,24 @@ create or replace function public.handle_verified_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   if new.email_confirmed_at is null then return new; end if;
-  insert into public.profiles (id, username, full_name, mobile, email)
+  insert into public.profiles (id, username, full_name, mobile, email, terms_accepted, terms_version, terms_accepted_at)
   values (
     new.id,
     public.generate_username(),
     left(coalesce(new.raw_user_meta_data->>'full_name', ''), 60),
     left(coalesce(new.raw_user_meta_data->>'mobile', ''), 16),
-    new.email
+    new.email,
+    coalesce((new.raw_user_meta_data->>'terms_accepted')::boolean, false),
+    left(coalesce(new.raw_user_meta_data->>'terms_version', ''), 20),
+    nullif(new.raw_user_meta_data->>'terms_accepted_at', '')::timestamptz
   )
   on conflict (id) do update set
     full_name = excluded.full_name,
     mobile = excluded.mobile,
-    email = excluded.email;
+    email = excluded.email,
+    terms_accepted = excluded.terms_accepted,
+    terms_version = excluded.terms_version,
+    terms_accepted_at = coalesce(excluded.terms_accepted_at, public.profiles.terms_accepted_at);
   return new;
 end $$;
 
