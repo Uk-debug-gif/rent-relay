@@ -4,6 +4,7 @@
 
 const SUPABASE_URL = "PASTE_SUPABASE_PROJECT_URL_HERE";
 const SUPABASE_ANON_KEY = "PASTE_SUPABASE_ANON_KEY_HERE";
+const TERMS_VERSION = "2026-11-12";
 const supabaseReady = !!(window.supabase && SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_"));
 const sb = supabaseReady ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -355,18 +356,23 @@ function openLogin(step = "signup") {
       <label>Name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
       <label>Email address<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <button class="primary wide" id="suGo" type="button">Send OTP</button>
+      <label class="terms-consent"><input id="suTerms" type="checkbox"><span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a> and <a href="terms.html#privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a>. I confirm that I am at least 18 years old.</span></label>
+      <p class="terms-required" id="termsRequired" role="alert">You must accept the Terms &amp; Conditions and Privacy Notice to create an account.</p>
+      <button class="primary wide" id="suGo" type="button">Accept &amp; send OTP</button>
       <button class="back" id="toLogin" type="button">Already have an account? Sign in</button>`);
     $("toLogin").onclick = () => openLogin("login");
     $("suGo").onclick = async () => {
       const name = $("suName").value.trim().replace(/\s+/g, " ");
       const mobile = cleanMobile($("suMobile").value), email = $("suEmail").value.trim().toLowerCase();
+      if (!$("suTerms").checked) { $("termsRequired").classList.add("show"); $("suTerms").focus(); toast("Please accept the Terms & Conditions to continue."); return; }
+      $("termsRequired").classList.remove("show");
       if (name.length < 2 || /[0-9]/.test(name)) { toast("Enter your name using letters."); return; }
       if (!mobile) { toast("Enter a valid mobile number (10 digits, or with country code like +91…)."); return; }
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
       if (needSupabase()) return;
       $("suGo").disabled = true; $("suGo").textContent = "Sending code…";
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { full_name: name, mobile } } });
+      const acceptedAt = new Date().toISOString();
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
       if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Send OTP"; return; }
       signupEmail = email; signupMobile = mobile; authFlow = "signup"; openLogin("otp");
     };
@@ -413,7 +419,7 @@ function openLogin(step = "signup") {
     cooldown();
     rs.onclick = async () => {
       if (needSupabase()) return;
-      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options: { shouldCreateUser: authFlow === "signup", data: authFlow === "signup" ? { mobile: signupMobile } : undefined } });
+      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options: { shouldCreateUser: authFlow === "signup", data: authFlow === "signup" ? { mobile: signupMobile, terms_accepted: true, terms_version: TERMS_VERSION } : undefined } });
       if (error) { toast(friendlyAuthError(error)); return; }
       toast("A new code was sent."); cooldown();
     };
