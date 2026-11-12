@@ -252,3 +252,119 @@ nav#mainNav a:hover{color:var(--brand)}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #b79af0;outline-offset:3px}
 @media(max-width:860px){.why-grid{grid-template-columns:1fr 1fr}.guide-grid{grid-template-columns:1fr;gap:26px}}
 @media(max-width:560px){.why,.rental-guide,.faq{padding:48px 0}.why-grid{grid-template-columns:1fr}.guide-grid h2,.faq h2{font-size:28px}}
+
+
+/* ---------- visual polish pass: richer surfaces, hierarchy and responsive details ---------- */
+::selection{background:#eadcfb;color:#2b1d3d}
+.topline{background:linear-gradient(90deg,#2b1d3d,#51316e 55%,#2b1d3d)}
+.site-header{box-shadow:0 5px 22px #30213f08}
+.logo{letter-spacing:-.7px}
+.primary,.secondary{min-height:44px}
+.primary{background:linear-gradient(135deg,#e14b4b,#ef7657);box-shadow:0 8px 20px #e14b4b2b}
+.primary:hover{transform:translateY(-1px);box-shadow:0 11px 24px #e14b4b3a}
+.secondary{box-shadow:0 3px 10px #30213f08}
+.hero{padding-top:76px;padding-bottom:82px}
+.hero h1{max-width:650px}
+.hero-search:focus-within{border-color:#9b7bd5;box-shadow:0 0 0 4px #6d44c91a,0 12px 30px #30213f12}
+.hero-circle{background:radial-gradient(circle at 48% 42%,#ffd9c7 0%,#f1e5ff 55%,#fff8f2 72%,transparent 73%)}
+.hero-product{border-color:#eee5f4;box-shadow:0 28px 70px #30213f20}
+.float-tag{border-color:#eee5f4}
+.section-head h2,.how h2,.trust h2{letter-spacing:-1.5px}
+.category-card{min-height:158px;box-shadow:0 5px 18px #30213f05}
+.category-card:hover{box-shadow:0 18px 38px #30213f18}
+.product{box-shadow:0 5px 18px #30213f06}
+.product-art{background-image:radial-gradient(circle at 50% 45%,#ffffff80,transparent 58%)}
+.product-info h3{line-height:1.35}
+.details{box-shadow:0 5px 12px #e14b4b20}
+.how{background:linear-gradient(180deg,#fff,#fcfaff)}
+.steps article,.why-card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#fff,#fcfaff);box-shadow:0 8px 26px #30213f08}
+.steps article{padding:24px}
+.steps article>div{width:48px;height:48px;border-radius:15px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;font-size:24px}
+.steps article>b{color:var(--orange);font-size:12px;letter-spacing:.12em}
+.why{padding:70px 0;background:#fff}
+.why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.why-card{padding:26px;transition:transform .18s,box-shadow .18s}
+.why-card:hover{transform:translateY(-4px);box-shadow:0 16px 34px #30213f12}
+.why-card>span{width:44px;height:44px;border-radius:14px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-size:22px;font-weight:800}
+.why-card h3{margin:15px 0 6px;font-size:18px}
+.why-card p{margin:0;color:var(--muted);font-size:14px}
+.rental-guide{padding:72px 0;background:linear-gradient(120deg,#f7f1ff,#fff8f3)}
+.guide-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:52px;align-items:start}
+.guide-grid h2{font:800 34px/1.2 Manrope;color:var(--navy);letter-spacing:-1.2px;margin:10px 0}
+.guide-grid p{color:var(--muted);max-width:420px}
+.guide-list{list-style:none;padding:0;margin:0;display:grid;gap:12px;counter-reset:guide}
+.guide-list li{counter-increment:guide;display:grid;grid-template-columns:38px 1fr;column-gap:14px;padding:16px;background:#ffffffd9;border:1px solid #ece5f0;border-radius:14px}
+.guide-list li:before{content:counter(guide,decimal-leading-zero);grid-row:span 2;color:var(--violet);font-weight:800;font-size:13px;padding-top:2px}
+.guide-list b{color:var(--navy);font-size:14px}
+.guide-list span{color:var(--muted);font-size:13px}
+.faq{padding:72px 0;background:#fff}
+.faq h2{font:800 34px Manrope;color:var(--navy);letter-spacing:-1.2px;margin:8px 0 24px}
+.faq details{max-width:850px;border:1px solid var(--line);border-radius:13px;padding:16px 18px;margin:10px 0;background:#fff}
+.faq details[open]{background:#fcfaff;border-color:#d8c9eb}
+.faq summary{cursor:pointer;font-weight:700;color:var(--navy)}
+.faq details p{margin:10px 0 0;color:var(--muted);font-size:14px}
+.trust{background:linear-gradient(115deg,#f4edff,#fff8f2)}
+.trust-points{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.trust-points span{padding:9px 13px;background:#fff;border:1px solid var(--line);border-radius:99px;font-size:12px;font-weight:700;color:var(--navy)}
+.site-footer{background:#241831}
+.site-footer .logo,.site-footer h4{color:#fff}
+.site-footer p,.site-footer small,.foot-links a{color:#c9bfd5}
+.foot-links a:hover{color:#fff}
+.banner{background:radial-gradient(circle at 85% 20%,#ffe6d7 0,transparent 28%),linear-gradient(115deg,#f1eafb,#fff 75%)}
+.subtile,.catalog-controls input,.catalog-controls select{transition:border-color .15s,box-shadow .15s}
+.subtile:focus-visible,.catalog-controls input:focus,.catalog-controls select:focus{box-shadow:0 0 0 4px #6d44c91a}
+.modal{box-shadow:0 30px 100px #1d122c45;border:1px solid #eee5f4}
+.close{transition:background .15s,transform .15s}
+.close:hover{background:#fff0ee;transform:rotate(90deg)}
+.toast{box-shadow:0 12px 35px #24183130}
+@media(max-width:800px){
+  .hero{padding-top:52px;padding-bottom:58px;gap:18px}
+  .hero-art{height:300px}
+  .hero-circle{width:280px;height:280px}
+  .hero-product{padding:28px 36px}
+  .category-grid{grid-template-columns:repeat(2,1fr)}
+  .products{grid-template-columns:repeat(2,1fr)}
+  .why-grid{grid-template-columns:1fr}
+  .guide-grid{grid-template-columns:1fr;gap:24px}
+}
+@media(max-width:560px){
+  .wrap{padding-left:18px;padding-right:18px}
+  .header-in{height:64px;padding:0 18px;gap:12px}
+  .logo{font-size:18px}
+  .header-actions{gap:7px}
+  .header-actions .secondary{display:none}
+  .menu-btn{display:block}
+  nav#mainNav{display:none;position:absolute;top:64px;left:0;right:0;margin:0;padding:14px 20px 18px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 12px 20px #30213f12;flex-direction:column;gap:14px}
+  nav#mainNav.open{display:flex}
+  .hero{grid-template-columns:1fr;padding:42px 18px 48px}
+  .hero h1{font-size:42px;letter-spacing:-1.8px}
+  .hero-art{height:250px}
+  .hero-circle{width:235px;height:235px}
+  .hero-product{padding:22px 28px}
+  .hero-product span{font-size:58px}
+  .float-tag{font-size:11px;padding:9px 11px}
+  .tag1{top:12px}.tag2{bottom:12px}
+  .section-head h2,.how h2,.trust h2,.guide-grid h2,.faq h2{font-size:28px}
+  .explore,.featured,.how,.why,.rental-guide,.faq{padding-top:52px;padding-bottom:52px}
+  .category-grid{gap:10px}
+  .category-card{min-height:130px;padding:14px;gap:10px}
+  .cat-emoji{width:44px;height:44px;font-size:23px;border-radius:13px}
+  .category-card b{font-size:13px}
+  .category-card small{font-size:11px}
+  .category-card em{font-size:10px}
+  .category-card i{font-size:16px}
+  .products{gap:11px}
+  .product-art{height:125px}
+  .product-art .emoji{font-size:52px}
+  .product-info{padding:12px}
+  .product-info h3{font-size:14px}
+  .price{font-size:16px}
+  .details{font-size:11px;padding:7px 9px}
+  .banner{padding:22px 0 28px}
+  .banner .big{font-size:72px;right:18px;opacity:.25}
+  .catalog-controls{width:100%;flex-direction:column}
+  .catalog-controls input,.catalog-controls select{width:100%;min-width:0}
+  .toolbar{align-items:stretch}
+  .sample{white-space:normal}
+  .trust-points{display:grid}
+}
