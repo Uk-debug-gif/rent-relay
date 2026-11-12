@@ -118,7 +118,7 @@ function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").inn
 function card(it) {
   const c = catOf(it);
   return `<a class="product" href="#/i/${encodeURIComponent(it.id)}" style="--c:${c.c};--t:${c.t}" aria-label="View details: ${esc(it.title)}">` +
-    `<div class="product-art"><span class="condition">${esc(it.cond)}</span><span class="emoji" aria-hidden="true">${esc(it.emoji)}</span></div>` +
+    `<div class="product-art">${it.image_url ? `<img class="product-photo" src="${esc(it.image_url)}" alt="${esc(it.title)}" loading="lazy">` : `<span class="emoji" aria-hidden="true">${esc(it.emoji)}</span>`}<span class="condition">${esc(it.cond)}</span></div>` +
     `<div class="product-info"><small>${esc(it.sub)}</small><h3>${esc(it.title)}</h3><div class="location">⌖ Campus pickup</div>` +
     `<div class="product-bottom"><span class="price">${money(it.price)}<small> / day</small></span><span class="details">View details →</span></div></div></a>`;
 }
@@ -203,7 +203,7 @@ function openItem(id) {
   box.innerHTML = `
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Home</a><span>›</span><a href="#/c/${cat.id}">${esc(cat.name)}</a><span>›</span><a href="#/c/${cat.id}/${slug(it.sub)}">${esc(it.sub)}</a><span>›</span><b>${esc(it.title)}</b></nav>
     <div class="detail-grid">
-      <div class="detail-art"><span class="condition">${esc(it.cond)}</span><span class="emoji" aria-hidden="true">${esc(it.emoji)}</span></div>
+      <div class="detail-art">${it.image_url ? `<img class="detail-photo" src="${esc(it.image_url)}" alt="${esc(it.title)}">` : `<span class="emoji" aria-hidden="true">${esc(it.emoji)}</span>`}<span class="condition">${esc(it.cond)}</span></div>
       <div class="detail-info">
         <span class="eyebrow">${esc(it.sub).toUpperCase()}</span>
         <h1>${esc(it.title)}</h1>
@@ -433,9 +433,9 @@ $("login").onclick = async () => {
 
 /* ---------- List an item ---------- */
 function listItem() {
-  if (!sb) { openLogin("signup"); toast("First configure Supabase to enable account-based listings."); return; }
+  if (!sb) { openLogin("login"); toast("First configure Supabase to enable account-based listings."); return; }
   sb.auth.getSession().then(({ data }) => {
-    if (!data.session) { afterLogin = true; openLogin("signup"); return; }
+    if (!data.session) { afterLogin = true; openLogin("login"); return; }
     renderListForm();
   });
 }
@@ -446,19 +446,43 @@ function renderListForm() {
     <label>Subcategory<select id="listingSub"></select></label>
     <label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label>
     <label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label>
+    <label>Item description<textarea id="listingDescription" rows="3" maxlength="500" placeholder="Describe the item, its features, size, included accessories and any existing marks"></textarea></label>
+    <label>Item photo<input id="listingPhoto" type="file" accept="image/*" required></label>
+    <div class="photo-preview hidden" id="photoPreview"><img id="photoPreviewImage" alt="Selected item preview"></div>
+    <p class="form-hint">Upload one clear photo of your item (JPG, PNG or WebP, up to 5 MB).</p>
     <button class="primary wide" id="saveListing" type="button">Submit listing</button>`);
   const fillSubs = () => { const c = CATS.find(x => x.name === $("listingCategory").value); $("listingSub").innerHTML = c.subs.map(s => `<option>${esc(s.name)}</option>`).join(""); };
   fillSubs(); $("listingCategory").onchange = fillSubs;
+  $("listingPhoto").onchange = () => {
+    const file = $("listingPhoto").files[0], preview = $("photoPreview");
+    if (!file) { preview.classList.add("hidden"); return; }
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      $("listingPhoto").value = ""; preview.classList.add("hidden");
+      toast("Choose an image under 5 MB."); return;
+    }
+    $("photoPreviewImage").src = URL.createObjectURL(file); preview.classList.remove("hidden");
+  };
   $("saveListing").onclick = async () => {
     const title = $("listingName").value.trim(), category = $("listingCategory").value, subcategory = $("listingSub").value,
-      price = Number($("listingPrice").value), condition = $("listingCondition").value.trim();
-    if (!title || !subcategory || !condition || !Number.isInteger(price) || price < 1) { toast("Please complete all fields with a valid price."); return; }
+      price = Number($("listingPrice").value), condition = $("listingCondition").value.trim(),
+      description = $("listingDescription").value.trim(), photo = $("listingPhoto").files[0];
+    if (!title || !subcategory || !condition || !description || !photo || !Number.isInteger(price) || price < 1) { toast("Please complete all details, add a description and upload an item photo."); return; }
+    if (!photo.type.startsWith("image/") || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
     const { data: userData } = await sb.auth.getUser();
-    if (!userData.user) { closeModal(); openLogin("signup"); return; }
-    $("saveListing").disabled = true; $("saveListing").textContent = "Saving…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, owner_id: userData.user.id });
-    if (error) { toast(error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
-    closeModal(); toast("Your item listing was submitted!"); loadLive();
+    if (!userData.user) { closeModal(); openLogin("login"); return; }
+    $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
+    const ext = (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const imagePath = `${userData.user.id}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await sb.storage.from("listing-images").upload(imagePath, photo, { contentType: photo.type, upsert: false });
+    if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
+    const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
+    $("saveListing").textContent = "Saving listing…";
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, image_url: publicImage.publicUrl, owner_id: userData.user.id });
+    if (error) {
+      await sb.storage.from("listing-images").remove([imagePath]);
+      toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
+    }
+    closeModal(); toast("Your item and photo were listed successfully!"); loadLive();
   };
 }
 $("listHero").onclick = listItem;
@@ -477,7 +501,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: "Listed by a student on your campus. Meet the lender to inspect the item before you rent." });
+      desc: r.description || "Listed by a student on your campus. Meet the lender to inspect the item before you rent.", image_url: r.image_url || "" });
   });
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
