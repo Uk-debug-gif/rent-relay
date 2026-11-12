@@ -374,8 +374,8 @@ function openLogin(step = "signup") {
       <button class="primary wide" id="finishSignup" type="button">Verify &amp; create account</button>
       <p class="note">Your mobile number is saved only so other students can contact you.</p>`);
     $("finishSignup").onclick = async () => {
-      const name = $("suName").value.trim().replace(/\\s+/g, " ");
-      if (name.length < 2 || !/^[\\p{L}][\\p{L} .'-]{1,59}$/u.test(name)) { toast("Enter your full name using letters."); return; }
+      const name = $("suName").value.trim().replace(/\s+/g, " ");
+      if (name.length < 2 || /[0-9]/.test(name)) { toast("Enter your full name using letters."); return; }
       $("finishSignup").disabled = true; $("finishSignup").textContent = "Creating account…";
       const { data, error } = await sb.auth.updateUser({ data: { full_name: name, mobile: signupMobile } });
       if (error) { toast(friendlyAuthError(error)); $("finishSignup").disabled = false; $("finishSignup").textContent = "Verify & create account"; return; }
