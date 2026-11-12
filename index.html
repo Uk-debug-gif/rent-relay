@@ -7,7 +7,7 @@
 <meta name="description" content="Rent study materials, books, lab essentials, games, sports gear and kitchen items from students on your campus.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <div class="topline">✦ A smarter way to share on campus</div>
@@ -18,6 +18,7 @@
     <nav id="mainNav" aria-label="Main">
       <a href="#explore">Explore</a>
       <a href="#how">How it works</a>
+      <a href="#why">Why RentRelay</a>
       <a href="#trust">Trust &amp; safety</a>
     </nav>
     <div class="header-actions">
@@ -84,6 +85,22 @@
       </div>
     </section>
 
+
+    <section class="why" id="why"><div class="wrap"><div class="section-head"><div><span class="eyebrow">WHY RENTRELAY</span><h2>Make campus life lighter.</h2><p>Use what you need without buying every single thing.</p></div></div><div class="why-grid">
+      <article class="why-card"><span>₹</span><h3>Spend less</h3><p>Rent an item for a short time instead of purchasing something you may rarely use.</p></article>
+      <article class="why-card"><span>⌖</span><h3>Stay close</h3><p>Discover items listed by students in your campus community and plan a convenient handover.</p></article>
+      <article class="why-card"><span>♻</span><h3>Share more</h3><p>Give useful items another life and help reduce unnecessary purchases and waste.</p></article>
+    </div></div></section>
+    <section class="rental-guide"><div class="wrap guide-grid"><div><span class="eyebrow">A CLEARER RENTAL JOURNEY</span><h2>Know the details before you meet.</h2><p>Review the item, daily price, condition and rental dates before arranging a campus handover.</p></div>
+      <ol class="guide-list"><li><b>Read the listing</b><span>Check item details, condition, price per day and pickup arrangements.</span></li><li><b>Agree on dates</b><span>Confirm the start date, rental duration, return date and total amount with the owner.</span></li><li><b>Inspect together</b><span>Check the item at handover and record any existing marks or issues.</span></li><li><b>Return responsibly</b><span>Return it on time in the agreed condition and keep a record of the handover.</span></li></ol>
+    </div></section>
+    <section class="faq" id="faq"><div class="wrap"><span class="eyebrow">GOOD TO KNOW</span><h2>Frequently asked questions.</h2>
+      <details><summary>Are items currently available for real rental?</summary><p>The catalogue currently includes sample demo listings. Live student listings appear after Supabase is connected and configured.</p></details>
+      <details><summary>Can I list my own item?</summary><p>Yes. Saving a listing requires a verified RentRelay account and the connected Supabase database.</p></details>
+      <details><summary>Does RentRelay collect payments?</summary><p>No. Online payments and confirmed booking requests are not connected yet. Inspect an item and agree on rental terms before handover.</p></details>
+      <details><summary>How is student verification handled?</summary><p>The current setup uses email verification. A mobile number collected during signup is not SMS-verified yet.</p></details>
+    </div></section>
+
     <section class="trust" id="trust">
       <div class="wrap">
         <span class="eyebrow">BUILT AROUND ACCOUNTABILITY</span><h2>Clear details. Better sharing.</h2>
@@ -132,7 +149,7 @@
   <div class="wrap foot-in">
     <div><b class="logo">RR rentrelay</b><p>Borrow what you need. Earn from what you own.</p></div>
     <div><h4>Categories</h4><div class="foot-links" id="footCats"></div></div>
-    <div><h4>Explore</h4><div class="foot-links"><a href="#how">How it works</a><a href="#trust">Trust &amp; safety</a></div></div>
+    <div><h4>Explore</h4><div class="foot-links"><a href="#how">How it works</a><a href="#why">Why RentRelay</a><a href="#faq">FAQs</a><a href="#trust">Trust &amp; safety</a></div></div>
   </div>
   <div class="wrap"><small>© 2026 RentRelay · Working name, subject to brand clearance. Sample listings shown for demo.</small></div>
 </footer>
@@ -142,6 +159,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
