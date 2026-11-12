@@ -207,7 +207,7 @@ function openItem(id) {
       <div class="detail-info">
         <span class="eyebrow">${esc(it.sub).toUpperCase()}</span>
         <h1>${esc(it.title)}</h1>
-        <div class="chips"><span class="chip">✓ ${esc(it.cond)}</span><span class="chip">⌖ Campus pickup</span><span class="chip">📅 From 1 day</span></div>
+        <div class="chips"><span class="chip">✓ ${esc(it.cond)}</span><span class="chip">⌖ ${esc(it.address || "Campus pickup")}</span><span class="chip">📅 From 1 day</span></div>
         <div class="big-price">${money(it.price)}<small> / day</small></div>
         <p class="desc">${esc(it.desc)}</p>
         <div class="rent-box">
@@ -316,8 +316,9 @@ function cleanMobile(raw) {
   return null;
 }
 function setAuthUI(session) {
-  $("login").textContent = session ? "Log out" : "Log in";
-  $("login").dataset.in = session ? "1" : "";
+  $("login").textContent = "Log in";
+  $("login").hidden = !!session;
+  $("login").dataset.in = "";
 }
 function needSupabase() {
   if (sb) return false;
@@ -336,19 +337,22 @@ function openLogin(step = "signup") {
   if (step === "signup") {
     openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Sign up to RentRelay</h2>
       <p>Enter your mobile number and email. We’ll send a verification code to your email.</p>
+      <label>Name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
       <label>Email address<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <button class="primary wide" id="suGo" type="button">Send email OTP</button>
+      <button class="primary wide" id="suGo" type="button">Send OTP</button>
       <button class="back" id="toLogin" type="button">Already have an account? Sign in</button>`);
     $("toLogin").onclick = () => openLogin("login");
     $("suGo").onclick = async () => {
+      const name = $("suName").value.trim().replace(/\s+/g, " ");
       const mobile = cleanMobile($("suMobile").value), email = $("suEmail").value.trim().toLowerCase();
+      if (name.length < 2 || /[0-9]/.test(name)) { toast("Enter your name using letters."); return; }
       if (!mobile) { toast("Enter a valid mobile number (10 digits, or with country code like +91…)."); return; }
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
       if (needSupabase()) return;
       $("suGo").disabled = true; $("suGo").textContent = "Sending code…";
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { mobile } } });
-      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Send email OTP"; return; }
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { full_name: name, mobile } } });
+      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Send OTP"; return; }
       signupEmail = email; signupMobile = mobile; authFlow = "signup"; openLogin("otp");
     };
   } else if (step === "login") {
@@ -394,7 +398,7 @@ function openLogin(step = "signup") {
     cooldown();
     rs.onclick = async () => {
       if (needSupabase()) return;
-      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options: { shouldCreateUser: false } });
+      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options: { shouldCreateUser: authFlow === "signup", data: authFlow === "signup" ? { mobile: signupMobile } : undefined } });
       if (error) { toast(friendlyAuthError(error)); return; }
       toast("A new code was sent."); cooldown();
     };
@@ -407,8 +411,7 @@ function openLogin(step = "signup") {
       if (error || !data || !data.user) { toast(friendlyAuthError(error)); $("verifyOtp").disabled = false; $("verifyOtp").textContent = "Verify & continue"; return; }
       clearInterval(resendTimer);
       setAuthUI(data.session || true);
-      if (authFlow === "signup") openLogin("name");
-      else showWelcome(data.user);
+      showWelcome(data.user);
     };
   }
 }
@@ -426,18 +429,11 @@ async function showWelcome(user) {
   $("welcomeGo").onclick = () => { closeModal(); if (afterLogin) { afterLogin = false; listItem(); } };
 }
 
-$("login").onclick = async () => {
-  if ($("login").dataset.in && sb) { await sb.auth.signOut(); setAuthUI(null); toast("You’re logged out."); return; }
-  openLogin("login");
-};
+$("login").onclick = () => openLogin("signup");
 
 /* ---------- List an item ---------- */
 function listItem() {
-  if (!sb) { openLogin("login"); toast("First configure Supabase to enable account-based listings."); return; }
-  sb.auth.getSession().then(({ data }) => {
-    if (!data.session) { afterLogin = true; openLogin("login"); return; }
-    renderListForm();
-  });
+  renderListForm();
 }
 function renderListForm() {
   openModal(`<span class="eyebrow">SHARE WITH YOUR CAMPUS</span><h2>List an item</h2><p>Add clear details so another student can request a rental.</p>
@@ -447,6 +443,7 @@ function renderListForm() {
     <label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label>
     <label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label>
     <label>Item description<textarea id="listingDescription" rows="3" maxlength="500" placeholder="Describe the item, its features, size, included accessories and any existing marks"></textarea></label>
+    <label>Address / pickup location<input id="listingAddress" maxlength="180" placeholder="Campus, hostel or pickup point"></label>
     <label>Item photo<input id="listingPhoto" type="file" accept="image/*" required></label>
     <div class="photo-preview hidden" id="photoPreview"><img id="photoPreviewImage" alt="Selected item preview"></div>
     <p class="form-hint">Upload one clear photo of your item (JPG, PNG or WebP, up to 5 MB).</p>
@@ -465,19 +462,19 @@ function renderListForm() {
   $("saveListing").onclick = async () => {
     const title = $("listingName").value.trim(), category = $("listingCategory").value, subcategory = $("listingSub").value,
       price = Number($("listingPrice").value), condition = $("listingCondition").value.trim(),
-      description = $("listingDescription").value.trim(), photo = $("listingPhoto").files[0];
-    if (!title || !subcategory || !condition || !description || !photo || !Number.isInteger(price) || price < 1) { toast("Please complete all details, add a description and upload an item photo."); return; }
+      description = $("listingDescription").value.trim(), address = $("listingAddress").value.trim(),
+      photo = $("listingPhoto").files[0];
+    if (!title || !subcategory || !condition || !description || !address || !photo || !Number.isInteger(price) || price < 1) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
+    if (needSupabase()) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
-    const { data: userData } = await sb.auth.getUser();
-    if (!userData.user) { closeModal(); openLogin("login"); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
     const ext = (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const imagePath = `${userData.user.id}/${crypto.randomUUID()}.${ext}`;
+    const imagePath = `public/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await sb.storage.from("listing-images").upload(imagePath, photo, { contentType: photo.type, upsert: false });
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
     $("saveListing").textContent = "Saving listing…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, image_url: publicImage.publicUrl, owner_id: userData.user.id });
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, address, image_url: publicImage.publicUrl, owner_id: null });
     if (error) {
       await sb.storage.from("listing-images").remove([imagePath]);
       toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
@@ -501,7 +498,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Listed by a student on your campus. Meet the lender to inspect the item before you rent.", image_url: r.image_url || "" });
+      desc: r.description || "Listed by a student on your campus. Meet the lender to inspect the item before you rent.", address: r.address || "", image_url: r.image_url || "" });
   });
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
