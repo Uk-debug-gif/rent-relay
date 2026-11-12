@@ -456,7 +456,7 @@ function renderListForm() {
   $("listingPhoto").onchange = () => {
     const file = $("listingPhoto").files[0], preview = $("photoPreview");
     if (!file) { preview.classList.add("hidden"); return; }
-    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
       $("listingPhoto").value = ""; preview.classList.add("hidden");
       toast("Choose an image under 5 MB."); return;
     }
@@ -467,7 +467,7 @@ function renderListForm() {
       price = Number($("listingPrice").value), condition = $("listingCondition").value.trim(),
       description = $("listingDescription").value.trim(), photo = $("listingPhoto").files[0];
     if (!title || !subcategory || !condition || !description || !photo || !Number.isInteger(price) || price < 1) { toast("Please complete all details, add a description and upload an item photo."); return; }
-    if (!photo.type.startsWith("image/") || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
     const { data: userData } = await sb.auth.getUser();
     if (!userData.user) { closeModal(); openLogin("login"); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
