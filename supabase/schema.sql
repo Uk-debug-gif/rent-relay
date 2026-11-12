@@ -21,6 +21,7 @@ alter table public.listings enable row level security;
 drop policy if exists "Anyone can read listings" on public.listings;
 create policy "Anyone can read listings" on public.listings for select using (true);
 drop policy if exists "Users can create their own listings" on public.listings;
+drop policy if exists "Anyone can create listings without an account" on public.listings;
 create policy "Anyone can create listings without an account" on public.listings for insert to anon, authenticated with check (owner_id is null or owner_id = auth.uid());
 drop policy if exists "Owners can update their own listings" on public.listings;
 create policy "Owners can update their own listings" on public.listings for update to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
@@ -112,6 +113,7 @@ create policy "Public can view listing photos" on storage.objects
   for select using (bucket_id = 'listing-images');
 
 drop policy if exists "Users upload their own listing photos" on storage.objects;
+drop policy if exists "Anyone can upload listing photos" on storage.objects;
 create policy "Anyone can upload listing photos" on storage.objects
   for insert to anon, authenticated
   with check (
