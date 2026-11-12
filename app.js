@@ -118,8 +118,8 @@ function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").inn
 function card(it) {
   const c = catOf(it);
   return `<a class="product" href="#/i/${encodeURIComponent(it.id)}" style="--c:${c.c};--t:${c.t}" aria-label="View details: ${esc(it.title)}">` +
-    `<div class="product-art">${it.image_url ? `<img class="product-photo" src="${esc(it.image_url)}" alt="${esc(it.title)}" loading="lazy">` : `<span class="emoji" aria-hidden="true">${esc(it.emoji)}</span>`}<span class="condition">${esc(it.cond)}</span></div>` +
-    `<div class="product-info"><small>${esc(it.sub)}</small><h3>${esc(it.title)}</h3><div class="location">⌖ Campus pickup</div>` +
+    `<div class="product-art">${it.image_url ? `<img class="product-photo" src="${esc(it.image_url)}" alt="${esc(it.title)}" loading="lazy">` : `<span class="emoji" aria-hidden="true">${esc(it.emoji)}</span>`}<span class="condition">${esc(it.cond)}</span><span class="listing-kind">${it.live ? "Student listing" : "Demo item"}</span></div>` +
+    `<div class="product-info"><small>${esc(it.sub)}</small><h3>${esc(it.title)}</h3><div class="location">⌖ ${esc(it.address || "Campus pickup")}</div>` +
     `<div class="product-bottom"><span class="price">${money(it.price)}<small> / day</small></span><span class="details">View details →</span></div></div></a>`;
 }
 
@@ -132,7 +132,9 @@ function renderHome() {
       `<span class="cat-text"><b>${esc(c.name)}</b><small>${esc(c.blurb)}</small>` +
       `<em>${c.subs.length} subcategories · ${n} items</em></span><i aria-hidden="true">→</i></a>`;
   }).join("");
-  $("featuredGrid").innerHTML = CATS.map(c => ITEMS.find(i => i.cat === c.id)).filter(Boolean).slice(0, 4).map(card).join("");
+  const liveFirst = ITEMS.filter(i => i.live).slice(0, 4);
+  const sampleFill = CATS.map(c => ITEMS.find(i => i.cat === c.id)).filter(Boolean);
+  $("featuredGrid").innerHTML = [...liveFirst, ...sampleFill.filter(i => !liveFirst.some(x => x.id === i.id))].slice(0, 4).map(card).join("");
   $("footCats").innerHTML = CATS.map(c => `<a href="#/c/${c.id}">${esc(c.name)}</a>`).join("");
 }
 
@@ -178,12 +180,17 @@ function openSearch(q) {
 function renderGrid() {
   const q = $("search").value.trim().toLowerCase(), sort = $("sort").value;
   let list = state.search ? ITEMS.slice() : ITEMS.filter(i => i.cat === state.cat.id && (!state.sub || i.sub === state.sub.name));
-  if (q) list = list.filter(i => (i.title + " " + i.sub + " " + catOf(i).name).toLowerCase().includes(q));
+  const minPrice = Number($("minPrice").value || 0);
+  const maxPrice = Number($("maxPrice").value || Infinity);
+  if (q) list = list.filter(i => (i.title + " " + i.sub + " " + catOf(i).name + " " + i.desc + " " + i.cond).toLowerCase().includes(q));
+  list = list.filter(i => i.price >= minPrice && i.price <= maxPrice);
   if (sort === "low") list.sort((a, b) => a.price - b.price);
-  if (sort === "high") list.sort((a, b) => b.price - a.price);
+  else if (sort === "high") list.sort((a, b) => b.price - a.price);
+  else if (sort === "newest") list.sort((a, b) => Number(!!b.live) - Number(!!a.live) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
   $("resultCount").textContent = `${list.length} item${list.length === 1 ? "" : "s"}`;
   $("products").innerHTML = list.map(card).join("");
   $("empty").classList.toggle("hidden", list.length > 0);
+  $("clearFilters").classList.toggle("hidden", !q && !minPrice && maxPrice === Infinity);
 }
 
 /* ---------- Item detail page ---------- */
@@ -248,6 +255,8 @@ function openItem(id) {
   $("rentBtn").onclick = () => {
     const name = $("rentName").value.trim();
     if (!name) { toast("Please enter your name first."); $("rentName").focus(); return; }
+    const startValue = $("rentStart").value;
+    if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
     $("rentBtn").disabled = true; $("rentBtn").textContent = "Request noted ✓";
     const m = $("rentMsg"); m.className = "note ok";
@@ -292,6 +301,12 @@ window.addEventListener("hashchange", () => {
 /* ---------- Page wiring ---------- */
 $("search").addEventListener("input", renderGrid);
 $("sort").addEventListener("change", renderGrid);
+$("minPrice").addEventListener("input", renderGrid);
+$("maxPrice").addEventListener("input", renderGrid);
+$("clearFilters").addEventListener("click", () => {
+  $("search").value = ""; $("minPrice").value = ""; $("maxPrice").value = "";
+  $("sort").value = "recommended"; renderGrid();
+});
 $("heroSearch").addEventListener("submit", e => {
   e.preventDefault();
   const q = $("heroQuery").value.trim();
@@ -498,7 +513,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Listed by a student on your campus. Meet the lender to inspect the item before you rent.", address: r.address || "", image_url: r.image_url || "" });
+      desc: r.description || "Listed by a student on your campus. Meet the lender to inspect the item before you rent.", address: r.address || "", image_url: r.image_url || "", created_at: r.created_at || "" });
   });
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
