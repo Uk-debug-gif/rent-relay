@@ -187,6 +187,8 @@ nav#mainNav a:hover{color:var(--brand)}
 .close{position:absolute;right:14px;top:12px;border:0;background:#f3eff7;border-radius:50%;width:32px;height:32px;font-size:20px;line-height:1}
 .modal h2{font-weight:800;font-size:24px;margin:8px 0}
 .modal p{font-size:14px;color:var(--muted)}
+.modal .back:disabled{opacity:.55;cursor:default}
+.username-box{margin:14px 0 18px;padding:16px;text-align:center;background:var(--violet-soft);color:var(--violet);border:1px dashed #c9b3f0;border-radius:14px;font:800 26px Manrope,'DM Sans',sans-serif;letter-spacing:-.5px;word-break:break-all}
 .modal .back{display:block;border:0;background:none;color:var(--violet);font-size:13px;font-weight:700;padding:0;margin-top:14px}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;border-radius:10px;padding:12px 18px;font-size:14px;z-index:30;box-shadow:0 10px 30px #0004;max-width:calc(100% - 32px)}
 

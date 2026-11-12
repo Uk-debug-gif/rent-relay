@@ -302,49 +302,127 @@ $("close").onclick = closeModal;
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
-/* ---------- Login (Supabase phone OTP) ---------- */
-let pendingPhone = "", afterLogin = false;
+/* ---------- Sign up / log in (Supabase email OTP) ----------
+   Sign up: mobile number → email → name → "Verify email" → 6-digit code sent to the email.
+   When the code is verified the account is created and the database gives the user a random username.
+   The mobile number is saved on the profile but is NOT verified by SMS. */
+let afterLogin = false, signupEmail = "", resendTimer = null;
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function cleanMobile(raw) {
+  const v = String(raw).trim().replace(/[\s()-]/g, "");
+  if (/^[6-9]\d{9}$/.test(v)) return "+91" + v;               // 10-digit Indian number
+  if (/^\+[1-9]\d{7,14}$/.test(v)) return v;                   // already with country code
+  return null;
+}
 function setAuthUI(session) {
   $("login").textContent = session ? "Log out" : "Log in";
   $("login").dataset.in = session ? "1" : "";
 }
-function openLogin(step = "phone") {
-  if (step === "phone") {
-    openModal(`<span class="eyebrow">WELCOME TO RENTRELAY</span><h2>Login with your mobile</h2><p>Enter your number. We’ll send a one-time password by SMS.</p><label>Mobile number<input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" maxlength="16"></label><button class="primary wide" id="sendOtp" type="button">Send OTP</button>`);
-    $("sendOtp").onclick = async () => {
-      const phone = $("phone").value.trim().replace(/[\s()-]/g, "");
-      if (!/^\+[1-9]\d{7,14}$/.test(phone)) { toast("Enter number with country code, e.g. +91XXXXXXXXXX"); return; }
-      if (!sb) { toast("Supabase setup pending — add project URL and anon key first."); return; }
-      pendingPhone = phone; $("sendOtp").disabled = true; $("sendOtp").textContent = "Sending…";
-      const { error } = await sb.auth.signInWithOtp({ phone });
-      if (error) { toast(error.message); $("sendOtp").disabled = false; $("sendOtp").textContent = "Send OTP"; return; }
-      openLogin("otp");
+function needSupabase() {
+  if (sb) return false;
+  toast("Supabase setup pending — add project URL and anon key first.");
+  return true;
+}
+function friendlyAuthError(err) {
+  const m = String(err && err.message || "Something went wrong");
+  if (/signups? not allowed|not found/i.test(m)) return "No account found with this email. Please sign up first.";
+  if (/rate limit|too many|security purposes/i.test(m)) return "Too many tries. Please wait a minute and try again.";
+  if (/expired|invalid/i.test(m)) return "That code is wrong or has expired. Check the latest email or request a new code.";
+  return m;
+}
+
+function openLogin(step = "signup") {
+  if (step === "signup") {
+    openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Sign up to RentRelay</h2>
+      <p>Tell us a little about you. We’ll email a code to verify your email.</p>
+      <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
+      <label>Email<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
+      <label>Full name<input id="suName" autocomplete="name" placeholder="Your name" maxlength="60"></label>
+      <button class="primary wide" id="suGo" type="button">Verify email</button>
+      <button class="back" id="toLogin" type="button">Already have an account? Log in</button>`);
+    $("toLogin").onclick = () => openLogin("login");
+    $("suGo").onclick = async () => {
+      const mobile = cleanMobile($("suMobile").value), email = $("suEmail").value.trim().toLowerCase(), name = $("suName").value.trim();
+      if (!mobile) { toast("Enter a valid mobile number (10 digits, or with country code like +91…)."); return; }
+      if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
+      if (name.length < 2) { toast("Please enter your full name."); return; }
+      if (needSupabase()) return;
+      $("suGo").disabled = true; $("suGo").textContent = "Sending code…";
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { full_name: name, mobile } } });
+      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Verify email"; return; }
+      signupEmail = email; openLogin("otp");
     };
-  } else {
-    openModal(`<span class="eyebrow">PHONE VERIFICATION</span><h2>Enter your OTP</h2><p>We sent a verification code to <b>${esc(pendingPhone)}</b>.</p><label>6-digit OTP<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></label><button class="primary wide" id="verifyOtp" type="button">Verify &amp; continue</button><button class="back" id="changePhone" type="button">← Change mobile number</button>`);
-    $("changePhone").onclick = () => openLogin("phone");
+  } else if (step === "login") {
+    openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in</h2>
+      <p>Enter your email and we’ll send you a code.</p>
+      <label>Email<input id="liEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
+      <button class="primary wide" id="liGo" type="button">Send code</button>
+      <button class="back" id="toSignup" type="button">New here? Create an account</button>`);
+    $("toSignup").onclick = () => openLogin("signup");
+    $("liGo").onclick = async () => {
+      const email = $("liEmail").value.trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
+      if (needSupabase()) return;
+      $("liGo").disabled = true; $("liGo").textContent = "Sending code…";
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+      if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send code"; return; }
+      signupEmail = email; openLogin("otp");
+    };
+  } else if (step === "otp") {
+    openModal(`<span class="eyebrow">VERIFY YOUR EMAIL</span><h2>Enter the code</h2>
+      <p>We sent a code to <b>${esc(signupEmail)}</b>. It can take a minute. Check spam too.</p>
+      <label>Verification code<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Enter code"></label>
+      <button class="primary wide" id="verifyOtp" type="button">Verify &amp; continue</button>
+      <button class="back" id="resend" type="button">Resend code</button>
+      <button class="back" id="changeEmail" type="button">← Use a different email</button>`);
+    $("changeEmail").onclick = () => openLogin("signup");
+    const rs = $("resend");
+    const cooldown = () => { let s = 30; rs.disabled = true; clearInterval(resendTimer); resendTimer = setInterval(() => { s--; if (!$("resend")) { clearInterval(resendTimer); return; } if (s <= 0) { clearInterval(resendTimer); rs.disabled = false; rs.textContent = "Resend code"; } else rs.textContent = `Resend code in ${s}s`; }, 1000); rs.textContent = "Resend code in 30s"; };
+    cooldown();
+    rs.onclick = async () => {
+      if (needSupabase()) return;
+      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options: { shouldCreateUser: false } });
+      if (error) { toast(friendlyAuthError(error)); return; }
+      toast("A new code was sent."); cooldown();
+    };
     $("verifyOtp").onclick = async () => {
       const token = $("otp").value.trim();
-      if (!/^\d{6}$/.test(token)) { toast("Enter the 6-digit OTP"); return; }
-      $("verifyOtp").disabled = true;
-      const { error } = await sb.auth.verifyOtp({ phone: pendingPhone, token, type: "sms" });
-      if (error) { toast(error.message); $("verifyOtp").disabled = false; return; }
-      closeModal(); toast("Mobile verified. You’re logged in!");
-      if (afterLogin) { afterLogin = false; listItem(); }
+      if (!/^\d{6,10}$/.test(token)) { toast("Enter the code from your email (numbers only)."); return; }
+      if (needSupabase()) return;
+      $("verifyOtp").disabled = true; $("verifyOtp").textContent = "Verifying…";
+      const { data, error } = await sb.auth.verifyOtp({ email: signupEmail, token, type: "email" });
+      if (error || !data || !data.user) { toast(friendlyAuthError(error)); $("verifyOtp").disabled = false; $("verifyOtp").textContent = "Verify & continue"; return; }
+      clearInterval(resendTimer);
+      setAuthUI(data.session || true);
+      showWelcome(data.user);
     };
   }
 }
+
+async function showWelcome(user) {
+  let username = "", name = (user.user_metadata && user.user_metadata.full_name) || "";
+  try {
+    const { data } = await sb.from("profiles").select("username,full_name").eq("id", user.id).maybeSingle();
+    if (data) { username = data.username || ""; name = data.full_name || name; }
+  } catch (e) { /* profile may take a moment; the welcome still works */ }
+  openModal(`<span class="eyebrow">YOU’RE IN</span><h2>Welcome${name ? ", " + esc(name) : ""}!</h2>
+    <p>Your email is verified.${username ? " Here is your RentRelay username:" : ""}</p>
+    ${username ? `<div class="username-box" id="uname">@${esc(username)}</div>` : ""}
+    <button class="primary wide" id="welcomeGo" type="button">Continue</button>`);
+  $("welcomeGo").onclick = () => { closeModal(); if (afterLogin) { afterLogin = false; listItem(); } };
+}
+
 $("login").onclick = async () => {
-  if ($("login").dataset.in && sb) { await sb.auth.signOut(); toast("You’re logged out."); return; }
-  openLogin();
+  if ($("login").dataset.in && sb) { await sb.auth.signOut(); setAuthUI(null); toast("You’re logged out."); return; }
+  openLogin("signup");
 };
 
 /* ---------- List an item ---------- */
 function listItem() {
-  if (!sb) { openLogin(); toast("First configure Supabase to enable account-based listings."); return; }
+  if (!sb) { openLogin("signup"); toast("First configure Supabase to enable account-based listings."); return; }
   sb.auth.getSession().then(({ data }) => {
-    if (!data.session) { afterLogin = true; openLogin(); return; }
+    if (!data.session) { afterLogin = true; openLogin("signup"); return; }
     renderListForm();
   });
 }
@@ -363,7 +441,7 @@ function renderListForm() {
       price = Number($("listingPrice").value), condition = $("listingCondition").value.trim();
     if (!title || !subcategory || !condition || !Number.isInteger(price) || price < 1) { toast("Please complete all fields with a valid price."); return; }
     const { data: userData } = await sb.auth.getUser();
-    if (!userData.user) { closeModal(); openLogin(); return; }
+    if (!userData.user) { closeModal(); openLogin("signup"); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Saving…";
     const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, owner_id: userData.user.id });
     if (error) { toast(error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
