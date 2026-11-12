@@ -304,10 +304,9 @@ $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) clo
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- Sign up / log in (Supabase email OTP) ----------
-   Sign up: mobile number → email → name → "Verify email" → 6-digit code sent to the email.
-   When the code is verified the account is created and the database gives the user a random username.
-   The mobile number is saved on the profile but is NOT verified by SMS. */
-let afterLogin = false, signupEmail = "", resendTimer = null;
+   Sign up: mobile number → email → email OTP → full legal name → account complete.
+   Mobile is contact information only; it is never verified by SMS. */
+let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 function cleanMobile(raw) {
@@ -336,23 +335,21 @@ function friendlyAuthError(err) {
 function openLogin(step = "signup") {
   if (step === "signup") {
     openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Sign up to RentRelay</h2>
-      <p>Tell us a little about you. We’ll email a code to verify your email.</p>
+      <p>Enter your mobile number and email. We’ll send a verification code to your email.</p>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
-      <label>Email<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <label>Full name<input id="suName" autocomplete="name" placeholder="Your name" maxlength="60"></label>
-      <button class="primary wide" id="suGo" type="button">Verify email</button>
-      <button class="back" id="toLogin" type="button">Already have an account? Log in</button>`);
+      <label>Email address<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
+      <button class="primary wide" id="suGo" type="button">Send email OTP</button>
+      <button class="back" id="toLogin" type="button">Already have an account? Sign in</button>`);
     $("toLogin").onclick = () => openLogin("login");
     $("suGo").onclick = async () => {
-      const mobile = cleanMobile($("suMobile").value), email = $("suEmail").value.trim().toLowerCase(), name = $("suName").value.trim();
+      const mobile = cleanMobile($("suMobile").value), email = $("suEmail").value.trim().toLowerCase();
       if (!mobile) { toast("Enter a valid mobile number (10 digits, or with country code like +91…)."); return; }
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
-      if (name.length < 2) { toast("Please enter your full name."); return; }
       if (needSupabase()) return;
       $("suGo").disabled = true; $("suGo").textContent = "Sending code…";
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { full_name: name, mobile } } });
-      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Verify email"; return; }
-      signupEmail = email; openLogin("otp");
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { mobile } } });
+      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Send email OTP"; return; }
+      signupEmail = email; signupMobile = mobile; authFlow = "signup"; openLogin("otp");
     };
   } else if (step === "login") {
     openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in</h2>
@@ -368,7 +365,21 @@ function openLogin(step = "signup") {
       $("liGo").disabled = true; $("liGo").textContent = "Sending code…";
       const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
       if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send code"; return; }
-      signupEmail = email; openLogin("otp");
+      signupEmail = email; authFlow = "login"; openLogin("otp");
+    };
+  } else if (step === "name") {
+    openModal(`<span class="eyebrow">ONE LAST STEP</span><h2>Your full name</h2>
+      <p>Enter your real full name as shown on your official ID. We do not need your Aadhaar or PAN number or a photo of the document.</p>
+      <label>Full legal name<input id="suName" autocomplete="name" maxlength="60" placeholder="Enter your full name"></label>
+      <button class="primary wide" id="finishSignup" type="button">Verify &amp; create account</button>
+      <p class="note">Your mobile number is saved only so other students can contact you.</p>`);
+    $("finishSignup").onclick = async () => {
+      const name = $("suName").value.trim().replace(/\\s+/g, " ");
+      if (name.length < 2 || !/^[\\p{L}][\\p{L} .'-]{1,59}$/u.test(name)) { toast("Enter your full name using letters."); return; }
+      $("finishSignup").disabled = true; $("finishSignup").textContent = "Creating account…";
+      const { data, error } = await sb.auth.updateUser({ data: { full_name: name, mobile: signupMobile } });
+      if (error) { toast(friendlyAuthError(error)); $("finishSignup").disabled = false; $("finishSignup").textContent = "Verify & create account"; return; }
+      showWelcome(data.user);
     };
   } else if (step === "otp") {
     openModal(`<span class="eyebrow">VERIFY YOUR EMAIL</span><h2>Enter the code</h2>
@@ -396,7 +407,8 @@ function openLogin(step = "signup") {
       if (error || !data || !data.user) { toast(friendlyAuthError(error)); $("verifyOtp").disabled = false; $("verifyOtp").textContent = "Verify & continue"; return; }
       clearInterval(resendTimer);
       setAuthUI(data.session || true);
-      showWelcome(data.user);
+      if (authFlow === "signup") openLogin("name");
+      else showWelcome(data.user);
     };
   }
 }
