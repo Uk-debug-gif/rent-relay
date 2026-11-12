@@ -1,7 +1,7 @@
 -- Run this in Supabase SQL Editor.
 create table if not exists public.listings (
   id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references auth.users(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete cascade,
   title text not null check (char_length(title) between 1 and 80),
   category text not null,
   subcategory text not null,
@@ -9,16 +9,19 @@ create table if not exists public.listings (
   condition text not null check (char_length(condition) between 1 and 60),
   description text not null default '',
   image_url text,
+  address text not null default '',
   created_at timestamptz not null default now()
 );
 -- Safe upgrades for projects where the listings table already exists.
 alter table public.listings add column if not exists description text not null default '';
 alter table public.listings add column if not exists image_url text;
+alter table public.listings alter column owner_id drop not null;
+alter table public.listings add column if not exists address text not null default '';
 alter table public.listings enable row level security;
 drop policy if exists "Anyone can read listings" on public.listings;
 create policy "Anyone can read listings" on public.listings for select using (true);
 drop policy if exists "Users can create their own listings" on public.listings;
-create policy "Users can create their own listings" on public.listings for insert to authenticated with check (auth.uid() = owner_id);
+create policy "Anyone can create listings without an account" on public.listings for insert to anon, authenticated with check (owner_id is null or owner_id = auth.uid());
 drop policy if exists "Owners can update their own listings" on public.listings;
 create policy "Owners can update their own listings" on public.listings for update to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
 drop policy if exists "Owners can delete their own listings" on public.listings;
@@ -95,8 +98,8 @@ create trigger on_auth_user_profile_metadata_updated
   for each row execute function public.handle_verified_user();
 
 
--- Public read access for item photos; only signed-in users can upload
--- into a folder named with their own auth user ID.
+-- Public read access for item photos; anonymous listing submissions
+-- upload into the public folder without requiring an account.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('listing-images', 'listing-images', true, 5242880, array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update set
@@ -109,11 +112,11 @@ create policy "Public can view listing photos" on storage.objects
   for select using (bucket_id = 'listing-images');
 
 drop policy if exists "Users upload their own listing photos" on storage.objects;
-create policy "Users upload their own listing photos" on storage.objects
-  for insert to authenticated
+create policy "Anyone can upload listing photos" on storage.objects
+  for insert to anon, authenticated
   with check (
     bucket_id = 'listing-images'
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and (storage.foldername(name))[1] = 'public'
   );
 
 drop policy if exists "Users delete their own listing photos" on storage.objects;
