@@ -7,8 +7,13 @@ create table if not exists public.listings (
   subcategory text not null,
   price_per_day integer not null check (price_per_day between 1 and 100000),
   condition text not null check (char_length(condition) between 1 and 60),
+  description text not null default '',
+  image_url text,
   created_at timestamptz not null default now()
 );
+-- Safe upgrades for projects where the listings table already exists.
+alter table public.listings add column if not exists description text not null default '';
+alter table public.listings add column if not exists image_url text;
 alter table public.listings enable row level security;
 drop policy if exists "Anyone can read listings" on public.listings;
 create policy "Anyone can read listings" on public.listings for select using (true);
@@ -88,3 +93,33 @@ drop trigger if exists on_auth_user_profile_metadata_updated on auth.users;
 create trigger on_auth_user_profile_metadata_updated
   after update of raw_user_meta_data on auth.users
   for each row execute function public.handle_verified_user();
+
+
+-- Public read access for item photos; only signed-in users can upload
+-- into a folder named with their own auth user ID.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('listing-images', 'listing-images', true, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Public can view listing photos" on storage.objects;
+create policy "Public can view listing photos" on storage.objects
+  for select using (bucket_id = 'listing-images');
+
+drop policy if exists "Users upload their own listing photos" on storage.objects;
+create policy "Users upload their own listing photos" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'listing-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users delete their own listing photos" on storage.objects;
+create policy "Users delete their own listing photos" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'listing-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
