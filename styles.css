@@ -234,3 +234,21 @@ nav#mainNav a:hover{color:var(--brand)}
   .hero-search{flex-wrap:nowrap}
   .hero h1{letter-spacing:-1.5px}
 }
+
+
+/* ---------- richer content sections ---------- */
+.why{padding:68px 0;background:#fff}.why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.why-card{padding:26px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#fff,var(--bg));box-shadow:0 10px 26px #30213f08}
+.why-card>span{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:var(--violet-soft);color:var(--violet);font-size:24px;font-weight:800;margin-bottom:18px}
+.why-card h3{font-size:18px;margin-bottom:8px}.why-card p{font-size:14px;color:var(--muted);margin:0}
+.rental-guide{padding:70px 0;background:linear-gradient(120deg,#f8f3ff,#fff7f1)}.guide-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:50px;align-items:start}
+.guide-grid h2,.faq h2{font:800 34px/1.15 Manrope,sans-serif;letter-spacing:-1px;color:var(--navy);margin:10px 0 14px}
+.guide-grid>div>p{color:var(--muted);max-width:430px}.guide-list{list-style:none;counter-reset:guide;margin:0;padding:0;display:grid;gap:12px}
+.guide-list li{counter-increment:guide;display:grid;grid-template-columns:42px 1fr;column-gap:14px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:14px}
+.guide-list li:before{content:counter(guide,decimal-leading-zero);grid-row:span 2;color:var(--brand);font:800 14px Manrope;padding-top:2px}
+.guide-list b{color:var(--navy);font-size:15px}.guide-list span{font-size:13px;color:var(--muted);margin-top:3px}
+.faq{padding:70px 0;background:#fff}.faq details{border:1px solid var(--line);border-radius:13px;padding:16px 18px;margin-top:12px;background:#fff}
+.faq summary{cursor:pointer;font-weight:700;color:var(--navy)}.faq details p{color:var(--muted);font-size:14px;margin:12px 0 0}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #b79af0;outline-offset:3px}
+@media(max-width:860px){.why-grid{grid-template-columns:1fr 1fr}.guide-grid{grid-template-columns:1fr;gap:26px}}
+@media(max-width:560px){.why,.rental-guide,.faq{padding:48px 0}.why-grid{grid-template-columns:1fr}.guide-grid h2,.faq h2{font-size:28px}}
