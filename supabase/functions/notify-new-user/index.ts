@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   if (!user?.id) return new Response("Missing user record", { status: 400 });
   // Ignore every update except "email just got verified" (so logins don't send emails).
   const justVerified = !!user.email_confirmed_at && !payload.old_record?.email_confirmed_at;
-  if (payload.type === "UPDATE" && !justVerified) return new Response("Ignored", { status: 200 });
+  if (payload.type !== "UPDATE" || !justVerified) return new Response("Ignored", { status: 200 });
   const meta = user.raw_user_meta_data ?? {};
   const created = user.created_at ?? new Date().toISOString();
   const response = await fetch("https://api.resend.com/emails", {
