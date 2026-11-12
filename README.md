@@ -67,3 +67,12 @@ The optional Supabase Edge Function lives in `supabase/functions/notify-new-user
 GitHub Pages: https://uk-debug-gif.github.io/rent-relay/
 
 After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to bypass cached files (Mac: Command + Shift + R).
+
+
+## Terms & Conditions acceptance
+
+- New account signup requires an unticked, affirmative checkbox agreeing to `terms.html` and its Privacy Notice before an email OTP can be sent.
+- Signup records the Terms version and acceptance timestamp in Supabase Auth user metadata; the profile trigger copies these values to `profiles`.
+- Existing accounts can still sign in without re-accepting. If the terms materially change, a proper re-consent flow should be implemented.
+- The legal page is a working draft, not a lawyer-certified compliance document. Before public/commercial launch, fill the operator's legal identity, address, customer support and grievance officer details and obtain Indian legal review.
+- After changing the schema, run the latest `supabase/schema.sql` in Supabase SQL Editor.
