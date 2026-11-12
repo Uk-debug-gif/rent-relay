@@ -382,3 +382,82 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .form-hint{font-size:12px!important;margin:5px 0 12px!important}
 .photo-preview{margin:10px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-height:220px;background:var(--bg)}
 .photo-preview img{display:block;width:100%;max-height:220px;object-fit:contain}
+
+
+/* ---------- RentRelay visual refresh: calm ink + jade + soft ivory ---------- */
+:root{
+  --navy:#172b35;
+  --text:#33464d;
+  --muted:#718087;
+  --line:#e5ecea;
+  --brand:#167c70;
+  --brand-dark:#10665c;
+  --brand-soft:#e6f4f0;
+  --violet:#267d75;
+  --violet-soft:#eaf5f2;
+  --orange:#d8a65b;
+  --bg:#f6f9f8;
+  --ok:#16805f;
+  --ok-soft:#e8f5ef;
+}
+body{background:#fbfdfc;color:var(--text)}
+h1,h2,h3,h4,.logo,.price,.big-price{color:var(--navy)}
+.topline{background:#172b35;color:#dcebe7}
+.site-header{background:#fbfdfcf2;border-bottom-color:var(--line);box-shadow:0 5px 24px #172b350b}
+.logo span{color:#168477}
+nav#mainNav a:hover,.crumbs a:hover{color:var(--brand)}
+.primary{background:#167c70;box-shadow:0 7px 18px #167c7028}
+.primary:hover{background:#10665c}
+.secondary{border-color:#dce8e4;color:var(--navy);background:#fff}
+.secondary:hover{border-color:#167c70;color:#10665c;background:#f3faf7}
+.hero .eyebrow,.explore .eyebrow,.featured .eyebrow,.how .eyebrow,.trust .eyebrow{color:#167c70}
+.hero h1 em{color:#167c70}
+.hero-circle{background:radial-gradient(circle at 48% 42%,#d8eee7 0%,#eaf4f1 55%,#f5f8ed 72%,transparent 73%)}
+.hero-product{border-color:#e3ece8;box-shadow:0 28px 70px #172b3518}
+.float-tag{border-color:#e3ece8;color:var(--navy)}
+.explore,.trust{background:#f5f9f7;border-color:var(--line)}
+.category-card{background:linear-gradient(135deg,var(--t),#fff 88%);border-color:var(--line)}
+.category-card:hover{box-shadow:0 16px 34px #172b3514}
+.product{border-color:var(--line);box-shadow:0 5px 18px #172b3507}
+.product:hover,.product:focus-visible{box-shadow:0 16px 34px #172b3516}
+.product-art{background-color:var(--t)}
+.details{background:#167c70;box-shadow:0 5px 12px #167c701b}
+.product:hover .details,.product:focus-visible .details{background:#10665c}
+.banner{background:linear-gradient(115deg,#eaf5f1,#fbfdfc 78%);border-color:var(--line)}
+.subtile.active{background:#edf7f3;border-color:#77b8a9;box-shadow:inset 0 0 0 1px #77b8a9}
+.sub-emoji{background:#f0f7f4}
+.catalog-controls input,.catalog-controls select,.rent-box input,.modal input,.modal select,.modal textarea{border-color:#dce8e4}
+.catalog-controls input:focus,.catalog-controls select:focus,.rent-box input:focus,.modal input:focus,.modal select:focus,.modal textarea:focus{outline:2px solid #9acfc0;border-color:transparent}
+.detail-art{background:linear-gradient(145deg,#eaf5f1,#fbfdfc 120%);border-color:var(--line)}
+.chip{background:#edf7f3;border-color:#dcece6;color:#244d49}
+.rent-box{border-color:var(--line);box-shadow:0 14px 34px #172b350c}
+.stepper{border-color:#dce8e4}
+.stepper button{background:#eaf5f1;color:#167c70}
+.stepper button:hover{background:#dcefe8}
+.summary{background:#f5f9f7;border-color:var(--line)}
+.note{background:#f7f2e8;color:#75613d}
+.steps article,.why-card{border-color:var(--line);background:linear-gradient(145deg,#fff,#f7faf8);box-shadow:0 8px 26px #172b3508}
+.steps article>div,.why-card>span{background:#e8f4f0;color:#167c70}
+.steps article>b{color:#168477}
+.guide-list li{border-color:var(--line)}
+.guide-list li:before{color:#167c70}
+.faq details[open]{background:#f7fbf9;border-color:#b8d8ce}
+.trust{background:linear-gradient(115deg,#edf6f2,#f9fbf7)}
+.trust-points span{color:#24564f;background:#fff;border-color:#e1ece7}
+.site-footer{background:#172b35}
+.overlay{background:#10252bcc}
+.modal{border-color:#e3ece8;box-shadow:0 30px 100px #10252b45}
+.close{background:#edf5f1;color:#244d49}
+.close:hover{background:#e0f0e9}
+.modal .back{color:#167c70}
+.username-box{background:#eaf5f1;color:#167c70;border-color:#b7d9ce}
+.toast{background:#172b35}
+:focus-visible{outline-color:#79bdae}
+::selection{background:#cde8df;color:#172b35}
+@media(max-width:860px){
+  nav#mainNav{background:#fbfdfc;border-color:var(--line)}
+  nav#mainNav a{border-color:#edf2ef}
+}
+@media(max-width:560px){
+  nav#mainNav{background:#fbfdfc;border-color:var(--line)}
+}
