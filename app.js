@@ -356,7 +356,7 @@ function openLogin(step = "signup") {
       <label>Name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
       <label>Email address<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <label class="terms-consent"><input id="suTerms" type="checkbox"><span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a> and <a href="terms.html#privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a>. I confirm that I am at least 18 years old.</span></label>
+      <label class="terms-consent"><input id="suTerms" type="checkbox"><span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a> and <a href="terms.html#privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.</span></label>
       <p class="terms-required" id="termsRequired" role="alert">You must accept the Terms &amp; Conditions and Privacy Notice to create an account.</p>
       <button class="primary wide" id="suGo" type="button">Accept &amp; send OTP</button>
       <button class="back" id="toLogin" type="button">Already have an account? Sign in</button>`);
