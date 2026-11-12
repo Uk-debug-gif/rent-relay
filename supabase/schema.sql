@@ -6,7 +6,7 @@ create table if not exists public.listings (
   category text not null,
   subcategory text not null,
   price_per_day integer not null check (price_per_day between 1 and 100000),
-  condition text not null,
+  condition text not null check (char_length(condition) between 1 and 60),
   created_at timestamptz not null default now()
 );
 alter table public.listings enable row level security;
