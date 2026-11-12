@@ -64,7 +64,10 @@ begin
     left(coalesce(new.raw_user_meta_data->>'mobile', ''), 16),
     new.email
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set
+    full_name = excluded.full_name,
+    mobile = excluded.mobile,
+    email = excluded.email;
   return new;
 end $$;
 
@@ -78,3 +81,10 @@ drop trigger if exists on_auth_user_verified on auth.users;
 create trigger on_auth_user_verified after update of email_confirmed_at on auth.users
   for each row when (old.email_confirmed_at is null and new.email_confirmed_at is not null)
   execute function public.handle_verified_user();
+
+-- After email OTP, the user submits their full name. Sync that metadata
+-- into the profile row created at email verification.
+drop trigger if exists on_auth_user_profile_metadata_updated on auth.users;
+create trigger on_auth_user_profile_metadata_updated
+  after update of raw_user_meta_data on auth.users
+  for each row execute function public.handle_verified_user();
