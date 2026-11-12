@@ -1,24 +1,399 @@
+/* RentRelay — frontend prototype
+   Pages (hash routes):  #  (home)   #/c/<category>   #/c/<category>/<subcategory>
+                         #/i/<item>  #/search/<text>                              */
+
 const SUPABASE_URL = "PASTE_SUPABASE_PROJECT_URL_HERE";
 const SUPABASE_ANON_KEY = "PASTE_SUPABASE_ANON_KEY_HERE";
-const supabaseReady = window.supabase && SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_");
-const supabase = supabaseReady ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-let pendingPhone = "";
-const data={
-"Study Materials":{desc:"Academic essentials for classes, assignments and exam prep.",subs:["All","Calculators","Notes & stationery","Study accessories"],items:[["Scientific calculator","Calculators","🧮",25,"Good condition","#e8efff"],["Class notes bundle","Notes & stationery","📝",10,"Good condition","#eaf0ff"],["Geometry box","Study accessories","📐",8,"Very good","#f4edff"],["Whiteboard markers set","Study accessories","🖊️",12,"Good condition","#e8f5f0"]]},
-"Books & Copies":{desc:"Borrow textbooks, notebooks and reading material for the time you need.",subs:["All","Textbooks","Notebooks & copies","Novels"],items:[["Engineering Mathematics","Textbooks","📘",15,"Very good","#f7eadc"],["Notebook bundle","Notebooks & copies","📓",12,"Good condition","#f3edff"],["Java Programming Book","Textbooks","📗",18,"Good condition","#e8f5e9"],["Campus novel collection","Novels","📚",10,"Like new","#fff0e4"]]},
-"Lab Essentials":{desc:"Practical essentials for your lab sessions. Check campus rules before booking.",subs:["All","Lab coats","Glassware","Safety items"],items:[["Lab coat — size M","Lab coats","🥼",20,"Clean & washed","#e8f5f1"],["Beaker set","Glassware","🧪",18,"Good condition","#e7f1fa"],["Safety goggles","Safety items","🥽",10,"Good condition","#edf3ff"],["Lab apron — size L","Lab coats","🥼",18,"Clean & washed","#f4f1eb"]]},
-"Indoor Games":{desc:"Game night essentials to enjoy with friends in your hostel or common room.",subs:["All","Board games","Chess & carrom","Indoor sports"],items:[["Chess set","Chess & carrom","♟️",10,"Good condition","#f1eafa"],["Carrom board","Chess & carrom","🎯",40,"Good condition","#fff1df"],["Ludo & board game pack","Board games","🎲",8,"Very good","#eaf2ff"],["Table tennis bats","Indoor sports","🏓",20,"Good condition","#e9f4ee"]]},
-"Outdoor Sports":{desc:"Sports gear for practice, play and friendly campus matches.",subs:["All","Rackets","Balls","Sports accessories"],items:[["Badminton racket","Rackets","🏸",30,"Good condition","#e8f4e8"],["Football","Balls","⚽",20,"Used · usable","#e6f2ed"],["Basketball","Balls","🏀",25,"Good condition","#fff0e4"],["Skipping rope","Sports accessories","〰️",8,"Very good","#f3edff"]]},
-"Utensils & Kitchen":{desc:"Everyday kitchen and dining essentials for temporary use.",subs:["All","Cookware","Flasks & bottles","Dining"],items:[["Electric kettle","Cookware","🫖",35,"Working condition","#f9eddf"],["Lunch box & flask","Flasks & bottles","🥣",15,"Clean","#f9e9e9"],["Frying pan","Cookware","🍳",20,"Good condition","#f8eee3"],["Steel plate & bowl set","Dining","🍽️",12,"Clean","#eaf0f5"]]}
+const supabaseReady = !!(window.supabase && SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_"));
+const sb = supabaseReady ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* ---------- Catalogue data (sample listings) ---------- */
+const CATS = [
+  { id: "study", name: "Study Materials", emoji: "✏️", c: "#5b5bd6", t: "#eceeff", blurb: "Notes, stationery, calculators",
+    desc: "Academic essentials for classes, assignments and exam prep.",
+    subs: [{ name: "Calculators", emoji: "🧮" }, { name: "Notes & stationery", emoji: "📝" }, { name: "Study accessories", emoji: "📐" }] },
+  { id: "books", name: "Books & Copies", emoji: "📚", c: "#d9822b", t: "#fff1e0", blurb: "Textbooks, notebooks, novels",
+    desc: "Borrow textbooks, notebooks and reading material for the time you need.",
+    subs: [{ name: "Textbooks", emoji: "📘" }, { name: "Notebooks & copies", emoji: "📓" }, { name: "Novels", emoji: "📖" }] },
+  { id: "lab", name: "Lab Essentials", emoji: "🥼", c: "#12957a", t: "#e3f6f0", blurb: "Lab coats, practical items",
+    desc: "Practical essentials for your lab sessions. Check campus rules before booking.",
+    subs: [{ name: "Lab coats", emoji: "🥼" }, { name: "Glassware", emoji: "🧪" }, { name: "Safety items", emoji: "🥽" }] },
+  { id: "indoor", name: "Indoor Games", emoji: "♟️", c: "#b83d93", t: "#fbe8f4", blurb: "Chess, carrom, board games",
+    desc: "Game night essentials to enjoy with friends in your hostel or common room.",
+    subs: [{ name: "Board games", emoji: "🎲" }, { name: "Chess & carrom", emoji: "♟️" }, { name: "Indoor sports", emoji: "🏓" }] },
+  { id: "outdoor", name: "Outdoor Sports", emoji: "🏸", c: "#2f9444", t: "#e6f5e8", blurb: "Rackets, balls, sports gear",
+    desc: "Sports gear for practice, play and friendly campus matches.",
+    subs: [{ name: "Rackets", emoji: "🏸" }, { name: "Balls", emoji: "⚽" }, { name: "Sports accessories", emoji: "🧘" }] },
+  { id: "kitchen", name: "Utensils & Kitchen", emoji: "🍳", c: "#df5a2f", t: "#ffece4", blurb: "Kettle, lunch box, cookware",
+    desc: "Everyday kitchen and dining essentials for temporary use.",
+    subs: [{ name: "Cookware", emoji: "🍳" }, { name: "Flasks & bottles", emoji: "🥣" }, { name: "Dining", emoji: "🍽️" }] }
+];
+
+// [subcategory, title, emoji, price per day (₹), condition, description]
+const RAW = {
+  study: [
+    ["Calculators", "Scientific calculator", "🧮", 25, "Good condition", "Handy scientific calculator for exams, labs and daily assignments."],
+    ["Calculators", "Programmable calculator", "🔢", 30, "Very good", "Programmable model for engineering and maths courses. Check your exam rules before using it in a test."],
+    ["Notes & stationery", "Class notes bundle", "📝", 10, "Good condition", "Neatly organised class notes covering core topics, useful for revision before tests."],
+    ["Notes & stationery", "Highlighter & pen pack", "🖍️", 6, "Like new", "Highlighters and pens for revision sessions and group study."],
+    ["Study accessories", "Geometry box", "📐", 8, "Very good", "Compass, divider, protractor and set squares together in one box."],
+    ["Study accessories", "Whiteboard markers set", "🖊️", 12, "Good condition", "Assorted markers for group study and whiteboard practice."],
+    ["Study accessories", "Drawing board", "📋", 20, "Good condition", "Smooth drawing board for engineering graphics and sketching."]
+  ],
+  books: [
+    ["Textbooks", "Engineering Mathematics", "📘", 15, "Very good", "Core engineering mathematics textbook with solved examples and practice problems."],
+    ["Textbooks", "Java Programming Book", "📗", 18, "Good condition", "Beginner-friendly Java programming textbook with exercises."],
+    ["Textbooks", "Engineering Physics", "📙", 15, "Good condition", "Physics textbook for first-year engineering courses."],
+    ["Notebooks & copies", "Notebook bundle", "📓", 12, "Good condition", "A set of notebooks with plenty of blank pages for class and practicals."],
+    ["Notebooks & copies", "Lab record copy", "📒", 8, "Like new", "Ready-to-use record copy for lab practicals."],
+    ["Novels", "Campus novel collection", "📚", 10, "Like new", "A mix of popular novels to read between classes."],
+    ["Novels", "Self-help classics", "📖", 8, "Good condition", "A few well-loved self-improvement reads for your downtime."]
+  ],
+  lab: [
+    ["Lab coats", "Lab coat — size M", "🥼", 20, "Clean & washed", "Washed and ready-to-wear lab coat in size M."],
+    ["Lab coats", "Lab coat — size L", "🥼", 20, "Clean & washed", "Washed and ready-to-wear lab coat in size L."],
+    ["Lab coats", "Lab apron — size L", "🧥", 18, "Clean & washed", "Lab apron in size L for practical sessions."],
+    ["Glassware", "Beaker set", "🧪", 18, "Good condition", "Set of beakers for chemistry practicals. Handle with care."],
+    ["Glassware", "Test tube rack", "🧫", 12, "Good condition", "Sturdy rack for holding test tubes during experiments."],
+    ["Safety items", "Safety goggles", "🥽", 10, "Good condition", "Clear safety goggles for chemistry and workshop sessions."],
+    ["Safety items", "Lab gloves pack", "🧤", 8, "New, sealed", "Disposable gloves pack for practicals."]
+  ],
+  indoor: [
+    ["Board games", "Ludo & board game pack", "🎲", 8, "Very good", "Ludo and other classic board games in one pack."],
+    ["Board games", "Playing cards deck", "🃏", 5, "Good condition", "Complete deck of playing cards for hostel game nights."],
+    ["Board games", "Trade & property board game", "💰", 15, "Very good", "A classic property-trading board game for 2–6 players."],
+    ["Chess & carrom", "Chess set", "♟️", 10, "Good condition", "Full chess set with board and all pieces."],
+    ["Chess & carrom", "Carrom board", "🪙", 40, "Good condition", "Carrom board with coins and striker."],
+    ["Indoor sports", "Table tennis bats", "🏓", 20, "Good condition", "Pair of table tennis bats with balls."],
+    ["Indoor sports", "Dart board", "🎯", 18, "Good condition", "Dart board with darts for the common room."]
+  ],
+  outdoor: [
+    ["Rackets", "Badminton racket", "🏸", 30, "Good condition", "Lightweight badminton racket, ready for the court."],
+    ["Rackets", "Tennis racket", "🎾", 35, "Good condition", "Tennis racket for practice and friendly matches."],
+    ["Balls", "Football", "⚽", 20, "Used · usable", "Football in usable condition for kick-abouts on the ground."],
+    ["Balls", "Basketball", "🏀", 25, "Good condition", "Basketball with good grip for the campus court."],
+    ["Balls", "Cricket ball set", "🏏", 15, "Good condition", "Set of cricket balls for net practice."],
+    ["Sports accessories", "Skipping rope", "〰️", 8, "Very good", "Adjustable skipping rope for fitness and warm-ups."],
+    ["Sports accessories", "Shuttlecock tube", "🏸", 10, "New, sealed", "Tube of shuttlecocks for badminton."],
+    ["Sports accessories", "Yoga mat", "🧘", 15, "Clean", "Non-slip yoga mat for stretching and workouts."]
+  ],
+  kitchen: [
+    ["Cookware", "Electric kettle", "🫖", 35, "Working condition", "Electric kettle for tea, noodles and quick hostel meals."],
+    ["Cookware", "Frying pan", "🍳", 20, "Good condition", "Non-stick frying pan for everyday cooking."],
+    ["Cookware", "Induction cooktop", "♨️", 50, "Working condition", "Portable induction cooktop. Use only with induction-safe cookware."],
+    ["Flasks & bottles", "Lunch box & flask", "🥣", 15, "Clean", "Lunch box with flask for carrying meals to class."],
+    ["Flasks & bottles", "Steel water bottle", "🍶", 8, "Clean", "Durable steel bottle that keeps your water fresh."],
+    ["Dining", "Steel plate & bowl set", "🍽️", 12, "Clean", "Steel plate and bowl set for hostel dining."],
+    ["Dining", "Cutlery set", "🥄", 8, "Clean", "Spoons, forks and knives for a small group."]
+  ]
 };
-const $=id=>document.getElementById(id);let current="",sub="All";
-function showCatalog(cat){current=cat;sub="All";$("categoryGrid").classList.add("hidden");$("catalog").classList.remove("hidden");$("catalogEyebrow").textContent="EXPLORE CATEGORY";$("catalogTitle").textContent=cat;$("catalogDesc").textContent=data[cat].desc;render()}
-function render(){let d=data[current],q=$("search").value.toLowerCase(),sort=$("sort").value;let items=d.items.filter(x=>(sub==="All"||x[1]===sub)&&x[0].toLowerCase().includes(q));if(sort==="low")items.sort((a,b)=>a[3]-b[3]);if(sort==="high")items.sort((a,b)=>b[3]-a[3]);$("subcats").innerHTML=d.subs.map(s=>`<button class="subcat ${s===sub?'active':''}" data-sub="${s}">${s}</button>`).join("");$("products").innerHTML=items.map(x=>`<article class="product" tabindex="0" role="button" aria-label="View ${x[0]} details" data-item="${x[0]}"><div class="product-art" style="background:${x[5]}"><span class="condition">${x[4]}</span>${x[2]}</div><div class="product-info"><small>${x[1]}</small><h3>${x[0]}</h3><div class="location">⌖ Campus pickup</div><div class="product-bottom"><span class="price">₹${x[3]}<small> / day</small></span><span class="details">View details</span></div></div></article>`).join("");$("empty").classList.toggle("hidden",items.length>0)}
-$("categoryGrid").addEventListener("click",e=>{let b=e.target.closest("[data-cat]");if(b)showCatalog(b.dataset.cat)});$("back").onclick=()=>{$("catalog").classList.add("hidden");$("categoryGrid").classList.remove("hidden")};$("subcats").addEventListener("click",e=>{let b=e.target.closest("[data-sub]");if(b){sub=b.dataset.sub;render()}});$("search").addEventListener("input",render);$("sort").addEventListener("change",render);
-const overlay=$("overlay");function close(){overlay.classList.add("hidden");$("modalBody").innerHTML=""}$("close").onclick=close;overlay.addEventListener("click",e=>{if(e.target===overlay)close()});document.addEventListener("keydown",e=>{if(e.key==="Escape")close();if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-item]")){e.preventDefault();e.target.click()}});
-$("products").addEventListener("click",e=>{let b=e.target.closest("[data-item]");if(!b)return;let item=data[current].items.find(x=>x[0]===b.dataset.item);$("modalBody").innerHTML=`<span class="eyebrow">RENTAL DETAILS</span><h2>${item[0]}</h2><p>${item[4]} · Campus pickup. Inspect the item with the lender at handover.</p><h2>₹${item[3]} <small style="font-size:12px;color:#82909d">/ day</small></h2><p style="background:#fff5e6;padding:10px;border-radius:8px;font-size:10px">Demo listing: real booking and payment will be enabled after backend setup.</p><label>Your name<input id="borrower" placeholder="Enter your name"></label><label>Rental days<input id="days" type="number" min="1" value="1"></label><button class="primary" id="request">Request to rent</button>`;$("request").onclick=()=>{close();toast("Demo only — booking will be connected in the next phase.")};overlay.classList.remove("hidden")});
-function toast(msg){let t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.append(t);setTimeout(()=>t.remove(),2600)}
-function openLogin(step="phone"){if(step==="phone"){$("modalBody").innerHTML=`<span class="eyebrow">WELCOME TO RENTRELAY</span><h2>Login with your mobile</h2><p>Enter your number. We’ll send a one-time password by SMS.</p><label>Mobile number<input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" maxlength="16"></label><button class="primary" id="sendOtp">Send OTP</button>`;$("sendOtp").onclick=async()=>{const raw=$("phone").value.trim();const phone=raw.replace(/[\s()-]/g,"");if(!/^\+[1-9]\d{7,14}$/.test(phone)){toast("Enter number with country code, e.g. +91XXXXXXXXXX");return}if(!supabase){toast("Supabase setup pending — add project URL and anon key first.");return}pendingPhone=phone;$("sendOtp").disabled=true;$("sendOtp").textContent="Sending…";const {error}=await supabase.auth.signInWithOtp({phone});if(error){toast(error.message);$("sendOtp").disabled=false;$("sendOtp").textContent="Send OTP";return}openLogin("otp")}}else{$("modalBody").innerHTML=`<span class="eyebrow">PHONE VERIFICATION</span><h2>Enter your OTP</h2><p>We sent a verification code to <b>${pendingPhone}</b>.</p><label>6-digit OTP<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></label><button class="primary" id="verifyOtp">Verify & continue</button><button class="back" id="changePhone">← Change mobile number</button>`;$("changePhone").onclick=()=>openLogin("phone");$("verifyOtp").onclick=async()=>{const token=$("otp").value.trim();if(!/^\d{6}$/.test(token)){toast("Enter the 6-digit OTP");return}$("verifyOtp").disabled=true;const {data:authData,error}=await supabase.auth.verifyOtp({phone:pendingPhone,token,type:"sms"});if(error){toast(error.message);$("verifyOtp").disabled=false;return}close();toast("Mobile verified. You’re logged in!");if(window.afterLoginList){window.afterLoginList=false;list()}}}overlay.classList.remove("hidden")}
-function list(){if(!supabase){openLogin();toast("First configure Supabase to enable account-based listings.");return}supabase.auth.getSession().then(({data:sessionData})=>{if(!sessionData.session){window.afterLoginList=true;openLogin();return}renderListForm()})}
-function renderListForm(){$("modalBody").innerHTML=`<span class="eyebrow">SHARE WITH YOUR CAMPUS</span><h2>List an item</h2><p>Add clear details so another student can request a rental.</p><label>Item name<input id="listingName" maxlength="80" placeholder="e.g. Scientific calculator"></label><label>Category<select id="listingCategory">${Object.keys(data).map(x=>`<option>${x}</option>`).join("")}</select></label><label>Subcategory<input id="listingSub" maxlength="60" placeholder="e.g. Calculators"></label><label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label><label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label><button class="primary" id="saveListing">Submit listing</button>`;$("saveListing").onclick=async()=>{const title=$("listingName").value.trim(),category=$("listingCategory").value,subcategory=$("listingSub").value.trim(),price=Number($("listingPrice").value),condition=$("listingCondition").value.trim();if(!title||!subcategory||!condition||!Number.isInteger(price)||price<1){toast("Please complete all fields with a valid price.");return}const {data:userData}=await supabase.auth.getUser();if(!userData.user){close();openLogin();return}$("saveListing").disabled=true;$("saveListing").textContent="Saving…";const {error}=await supabase.from("listings").insert({title,category,subcategory,price_per_day:price,condition,owner_id:userData.user.id});if(error){toast(error.message);$("saveListing").disabled=false;$("saveListing").textContent="Submit listing";return}close();toast("Your item listing was submitted!")}}
-$("listHero").onclick=list;$("login").onclick=()=>openLogin();
+
+const ITEMS = [];
+CATS.forEach(c => (RAW[c.id] || []).forEach((r, i) =>
+  ITEMS.push({ id: c.id + "-" + (i + 1), cat: c.id, sub: r[0], title: r[1], emoji: r[2], price: r[3], cond: r[4], desc: r[5] })));
+
+/* ---------- Helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+const slug = s => String(s).toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const catById = id => CATS.find(c => c.id === id);
+const catOf = it => catById(it.cat);
+const money = n => "₹" + Number(n).toLocaleString("en-IN");
+let soft = false; // soft refresh = don't reset scroll / inputs / modal
+
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
+  document.body.append(t);
+  setTimeout(() => t.remove(), 3200);
+}
+function openModal(html) {
+  $("modalBody").innerHTML = html;
+  $("overlay").classList.remove("hidden");
+  const f = $("modalBody").querySelector("input,select");
+  if (f) f.focus();
+}
+function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").innerHTML = ""; }
+
+function card(it) {
+  const c = catOf(it);
+  return `<a class="product" href="#/i/${encodeURIComponent(it.id)}" style="--c:${c.c};--t:${c.t}" aria-label="View details: ${esc(it.title)}">` +
+    `<div class="product-art"><span class="condition">${esc(it.cond)}</span><span class="emoji" aria-hidden="true">${esc(it.emoji)}</span></div>` +
+    `<div class="product-info"><small>${esc(it.sub)}</small><h3>${esc(it.title)}</h3><div class="location">⌖ Campus pickup</div>` +
+    `<div class="product-bottom"><span class="price">${money(it.price)}<small> / day</small></span><span class="details">View details →</span></div></div></a>`;
+}
+
+/* ---------- Home ---------- */
+function renderHome() {
+  $("categoryGrid").innerHTML = CATS.map(c => {
+    const n = ITEMS.filter(i => i.cat === c.id).length;
+    return `<a class="category-card" href="#/c/${c.id}" style="--c:${c.c};--t:${c.t}">` +
+      `<span class="cat-emoji" aria-hidden="true">${c.emoji}</span>` +
+      `<span class="cat-text"><b>${esc(c.name)}</b><small>${esc(c.blurb)}</small>` +
+      `<em>${c.subs.length} subcategories · ${n} items</em></span><i aria-hidden="true">→</i></a>`;
+  }).join("");
+  $("featuredGrid").innerHTML = CATS.map(c => ITEMS.find(i => i.cat === c.id)).filter(Boolean).slice(0, 4).map(card).join("");
+  $("footCats").innerHTML = CATS.map(c => `<a href="#/c/${c.id}">${esc(c.name)}</a>`).join("");
+}
+
+/* ---------- Category / search page ---------- */
+const state = { cat: null, sub: null, search: false };
+
+function openCategory(cid, subSlug) {
+  const cat = catById(cid);
+  const sub = cat.subs.find(s => slug(s.name) === subSlug) || null;
+  state.cat = cat; state.sub = sub; state.search = false;
+  if (!soft) { $("search").value = ""; $("sort").value = "recommended"; }
+  const page = $("catalog");
+  page.style.cssText = `--c:${cat.c};--t:${cat.t}`;
+  $("crumbs").innerHTML = `<a href="#">Home</a><span>›</span>` + (sub ? `<a href="#/c/${cat.id}">${esc(cat.name)}</a><span>›</span><b>${esc(sub.name)}</b>` : `<b>${esc(cat.name)}</b>`);
+  $("catalogEyebrow").textContent = sub ? cat.name.toUpperCase() : "EXPLORE CATEGORY";
+  $("catalogTitle").textContent = sub ? sub.name : cat.name;
+  $("catalogDesc").textContent = cat.desc;
+  $("catalogEmoji").textContent = sub ? sub.emoji : cat.emoji;
+  const all = ITEMS.filter(i => i.cat === cat.id);
+  $("subtiles").classList.remove("hidden");
+  $("subtiles").innerHTML =
+    `<a class="subtile ${sub ? "" : "active"}" href="#/c/${cat.id}"><span class="sub-emoji" aria-hidden="true">${cat.emoji}</span><span><b>All</b><small>${all.length} items</small></span></a>` +
+    cat.subs.map(s => `<a class="subtile ${sub && sub.name === s.name ? "active" : ""}" href="#/c/${cat.id}/${slug(s.name)}"><span class="sub-emoji" aria-hidden="true">${s.emoji}</span><span><b>${esc(s.name)}</b><small>${all.filter(i => i.sub === s.name).length} items</small></span></a>`).join("");
+  document.title = (sub ? sub.name + " — " : "") + cat.name + " | RentRelay";
+  show("catalog"); renderGrid(); toTop();
+}
+
+function openSearch(q) {
+  state.cat = null; state.sub = null; state.search = true;
+  if (!soft) { $("search").value = q; $("sort").value = "recommended"; }
+  $("catalog").style.cssText = "--c:#6d44c9;--t:#f1ebfb";
+  $("crumbs").innerHTML = `<a href="#">Home</a><span>›</span><b>Search</b>`;
+  $("catalogEyebrow").textContent = "SEARCH RESULTS";
+  $("catalogTitle").textContent = q ? `“${q}”` : "All items";
+  $("catalogDesc").textContent = "Showing matches from every category.";
+  $("catalogEmoji").textContent = "🔎";
+  $("subtiles").classList.add("hidden"); $("subtiles").innerHTML = "";
+  document.title = "Search | RentRelay";
+  show("catalog"); renderGrid(); toTop();
+}
+
+function renderGrid() {
+  const q = $("search").value.trim().toLowerCase(), sort = $("sort").value;
+  let list = state.search ? ITEMS.slice() : ITEMS.filter(i => i.cat === state.cat.id && (!state.sub || i.sub === state.sub.name));
+  if (q) list = list.filter(i => (i.title + " " + i.sub + " " + catOf(i).name).toLowerCase().includes(q));
+  if (sort === "low") list.sort((a, b) => a.price - b.price);
+  if (sort === "high") list.sort((a, b) => b.price - a.price);
+  $("resultCount").textContent = `${list.length} item${list.length === 1 ? "" : "s"}`;
+  $("products").innerHTML = list.map(card).join("");
+  $("empty").classList.toggle("hidden", list.length > 0);
+}
+
+/* ---------- Item detail page ---------- */
+function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+
+function openItem(id) {
+  const it = ITEMS.find(x => x.id === id);
+  show("detail");
+  const box = $("detailBody");
+  if (!it) {
+    box.innerHTML = `<div class="notfound"><h1>We couldn’t find that item</h1><p>It may have been removed, or it is still loading.</p><a class="primary" href="#">Back to home</a></div>`;
+    document.title = "Item not found | RentRelay"; toTop(); return;
+  }
+  const cat = catOf(it);
+  $("detail").style.cssText = `--c:${cat.c};--t:${cat.t}`;
+  const similar = ITEMS.filter(x => x.id !== it.id && x.cat === it.cat).sort((a, b) => (b.sub === it.sub) - (a.sub === it.sub)).slice(0, 4);
+  box.innerHTML = `
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Home</a><span>›</span><a href="#/c/${cat.id}">${esc(cat.name)}</a><span>›</span><a href="#/c/${cat.id}/${slug(it.sub)}">${esc(it.sub)}</a><span>›</span><b>${esc(it.title)}</b></nav>
+    <div class="detail-grid">
+      <div class="detail-art"><span class="condition">${esc(it.cond)}</span><span class="emoji" aria-hidden="true">${esc(it.emoji)}</span></div>
+      <div class="detail-info">
+        <span class="eyebrow">${esc(it.sub).toUpperCase()}</span>
+        <h1>${esc(it.title)}</h1>
+        <div class="chips"><span class="chip">✓ ${esc(it.cond)}</span><span class="chip">⌖ Campus pickup</span><span class="chip">📅 From 1 day</span></div>
+        <div class="big-price">${money(it.price)}<small> / day</small></div>
+        <p class="desc">${esc(it.desc)}</p>
+        <div class="rent-box">
+          <h2>Request to rent</h2>
+          <label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>
+          <div class="rent-row">
+            <label>Start date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
+            <label>Rental days
+              <span class="stepper"><button type="button" id="dMinus" aria-label="Fewer days">−</button><input id="rentDays" type="number" min="1" max="30" value="1" inputmode="numeric"><button type="button" id="dPlus" aria-label="More days">+</button></span>
+            </label>
+          </div>
+          <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
+          <button class="primary wide" id="rentBtn" type="button">Request to rent</button>
+          <div class="note" id="rentMsg">Demo listing: real booking and payment will be enabled after backend setup.</div>
+        </div>
+        <ul class="checklist">
+          <li><b>At handover:</b> meet the lender on campus and inspect the item together.</li>
+          <li><b>Condition:</b> note any marks or damage before you take it.</li>
+          <li><b>Return:</b> give it back clean and on the agreed date.</li>
+        </ul>
+      </div>
+    </div>
+    ${similar.length ? `<section class="similar"><h2>More in ${esc(cat.name)}</h2><div class="products">${similar.map(card).join("")}</div></section>` : ""}`;
+
+  const days = $("rentDays");
+  const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
+  const update = () => {
+    const n = clamp(), start = $("rentStart").value || todayISO();
+    const end = new Date(start + "T00:00"); end.setDate(end.getDate() + n);
+    $("sumLine").textContent = `${money(it.price)} × ${n} day${n > 1 ? "s" : ""}`;
+    $("sumReturn").textContent = "Return by " + end.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    $("sumTotal").textContent = money(it.price * n);
+  };
+  $("dMinus").onclick = () => { days.value = clamp() - 1; update(); };
+  $("dPlus").onclick = () => { days.value = clamp() + 1; update(); };
+  days.addEventListener("input", update); days.addEventListener("change", update); $("rentStart").addEventListener("change", update);
+  update();
+  $("rentBtn").onclick = () => {
+    const name = $("rentName").value.trim();
+    if (!name) { toast("Please enter your name first."); $("rentName").focus(); return; }
+    const n = clamp();
+    $("rentBtn").disabled = true; $("rentBtn").textContent = "Request noted ✓";
+    const m = $("rentMsg"); m.className = "note ok";
+    m.textContent = `Thanks, ${name}! This is a demo: your request for ${it.title} (${n} day${n > 1 ? "s" : ""}, ${money(it.price * n)}) is not sent yet. Booking will be connected in the next phase.`;
+  };
+  document.title = it.title + " — " + cat.name + " | RentRelay";
+  toTop();
+}
+
+/* ---------- Routing ---------- */
+function show(view) {
+  ["home", "catalog", "detail"].forEach(v => $(v).classList.toggle("hidden", v !== view));
+}
+function toTop() { if (!soft) window.scrollTo({ top: 0, behavior: "instant" }); }
+
+function openHome(anchor) {
+  show("home");
+  document.title = "RentRelay — Campus rentals, made simple";
+  if (soft) return;
+  const el = anchor && $(anchor);
+  if (el) requestAnimationFrame(() => el.scrollIntoView()); else window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function route() {
+  if (!soft) closeModal();
+  const raw = location.hash.replace(/^#/, "");
+  if (raw.startsWith("/")) {
+    const p = raw.slice(1).split("/").map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
+    if (p[0] === "c" && catById(p[1])) return openCategory(p[1], p[2]);
+    if (p[0] === "i" && p[1]) return openItem(p[1]);
+    if (p[0] === "search") return openSearch(p[1] || "");
+    return openHome();
+  }
+  openHome(raw);
+}
+window.addEventListener("hashchange", () => {
+  soft = false;
+  $("mainNav").classList.remove("open"); $("menuBtn").setAttribute("aria-expanded", "false");
+  route();
+});
+
+/* ---------- Page wiring ---------- */
+$("search").addEventListener("input", renderGrid);
+$("sort").addEventListener("change", renderGrid);
+$("heroSearch").addEventListener("submit", e => {
+  e.preventDefault();
+  const q = $("heroQuery").value.trim();
+  location.hash = "#/search/" + encodeURIComponent(q);
+});
+$("menuBtn").onclick = () => { const o = $("mainNav").classList.toggle("open"); $("menuBtn").setAttribute("aria-expanded", String(o)); };
+$("mainNav").addEventListener("click", e => { if (e.target.closest("a")) { $("mainNav").classList.remove("open"); $("menuBtn").setAttribute("aria-expanded", "false"); } });
+$("close").onclick = closeModal;
+$("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+/* ---------- Login (Supabase phone OTP) ---------- */
+let pendingPhone = "", afterLogin = false;
+
+function setAuthUI(session) {
+  $("login").textContent = session ? "Log out" : "Log in";
+  $("login").dataset.in = session ? "1" : "";
+}
+function openLogin(step = "phone") {
+  if (step === "phone") {
+    openModal(`<span class="eyebrow">WELCOME TO RENTRELAY</span><h2>Login with your mobile</h2><p>Enter your number. We’ll send a one-time password by SMS.</p><label>Mobile number<input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" maxlength="16"></label><button class="primary wide" id="sendOtp" type="button">Send OTP</button>`);
+    $("sendOtp").onclick = async () => {
+      const phone = $("phone").value.trim().replace(/[\s()-]/g, "");
+      if (!/^\+[1-9]\d{7,14}$/.test(phone)) { toast("Enter number with country code, e.g. +91XXXXXXXXXX"); return; }
+      if (!sb) { toast("Supabase setup pending — add project URL and anon key first."); return; }
+      pendingPhone = phone; $("sendOtp").disabled = true; $("sendOtp").textContent = "Sending…";
+      const { error } = await sb.auth.signInWithOtp({ phone });
+      if (error) { toast(error.message); $("sendOtp").disabled = false; $("sendOtp").textContent = "Send OTP"; return; }
+      openLogin("otp");
+    };
+  } else {
+    openModal(`<span class="eyebrow">PHONE VERIFICATION</span><h2>Enter your OTP</h2><p>We sent a verification code to <b>${esc(pendingPhone)}</b>.</p><label>6-digit OTP<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></label><button class="primary wide" id="verifyOtp" type="button">Verify &amp; continue</button><button class="back" id="changePhone" type="button">← Change mobile number</button>`);
+    $("changePhone").onclick = () => openLogin("phone");
+    $("verifyOtp").onclick = async () => {
+      const token = $("otp").value.trim();
+      if (!/^\d{6}$/.test(token)) { toast("Enter the 6-digit OTP"); return; }
+      $("verifyOtp").disabled = true;
+      const { error } = await sb.auth.verifyOtp({ phone: pendingPhone, token, type: "sms" });
+      if (error) { toast(error.message); $("verifyOtp").disabled = false; return; }
+      closeModal(); toast("Mobile verified. You’re logged in!");
+      if (afterLogin) { afterLogin = false; listItem(); }
+    };
+  }
+}
+$("login").onclick = async () => {
+  if ($("login").dataset.in && sb) { await sb.auth.signOut(); toast("You’re logged out."); return; }
+  openLogin();
+};
+
+/* ---------- List an item ---------- */
+function listItem() {
+  if (!sb) { openLogin(); toast("First configure Supabase to enable account-based listings."); return; }
+  sb.auth.getSession().then(({ data }) => {
+    if (!data.session) { afterLogin = true; openLogin(); return; }
+    renderListForm();
+  });
+}
+function renderListForm() {
+  openModal(`<span class="eyebrow">SHARE WITH YOUR CAMPUS</span><h2>List an item</h2><p>Add clear details so another student can request a rental.</p>
+    <label>Item name<input id="listingName" maxlength="80" placeholder="e.g. Scientific calculator"></label>
+    <label>Category<select id="listingCategory">${CATS.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("")}</select></label>
+    <label>Subcategory<select id="listingSub"></select></label>
+    <label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label>
+    <label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label>
+    <button class="primary wide" id="saveListing" type="button">Submit listing</button>`);
+  const fillSubs = () => { const c = CATS.find(x => x.name === $("listingCategory").value); $("listingSub").innerHTML = c.subs.map(s => `<option>${esc(s.name)}</option>`).join(""); };
+  fillSubs(); $("listingCategory").onchange = fillSubs;
+  $("saveListing").onclick = async () => {
+    const title = $("listingName").value.trim(), category = $("listingCategory").value, subcategory = $("listingSub").value,
+      price = Number($("listingPrice").value), condition = $("listingCondition").value.trim();
+    if (!title || !subcategory || !condition || !Number.isInteger(price) || price < 1) { toast("Please complete all fields with a valid price."); return; }
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData.user) { closeModal(); openLogin(); return; }
+    $("saveListing").disabled = true; $("saveListing").textContent = "Saving…";
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, owner_id: userData.user.id });
+    if (error) { toast(error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
+    closeModal(); toast("Your item listing was submitted!"); loadLive();
+  };
+}
+$("listHero").onclick = listItem;
+$("listTop").onclick = listItem;
+
+/* ---------- Live listings from Supabase (merged into the browse pages) ---------- */
+async function loadLive() {
+  if (!sb) return;
+  const { data: rows, error } = await sb.from("listings").select("*").order("created_at", { ascending: false }).limit(200);
+  if (error || !rows) return;
+  for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
+  rows.forEach(r => {
+    const cat = CATS.find(c => c.name === r.category);
+    if (!cat) return;
+    if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
+    ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
+      desc: "Listed by a student on your campus. Meet the lender to inspect the item before you rent." });
+  });
+  soft = true; renderHome(); route(); soft = false;
+}
+
+/* ---------- Start ---------- */
+renderHome();
+route();
+if (sb) {
+  sb.auth.getSession().then(({ data }) => setAuthUI(data.session));
+  sb.auth.onAuthStateChange((_e, s) => setAuthUI(s));
+  loadLive();
+}

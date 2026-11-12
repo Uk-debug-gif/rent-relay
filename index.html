@@ -1,30 +1,147 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>RentRelay — Campus rentals, made simple</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<meta name="description" content="Rent study materials, books, lab essentials, games, sports gear and kitchen items from students on your campus.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="topline">✦ A smarter way to share on campus</div>
-<header><a class="logo" href="#">R<span>R</span> rentrelay</a><nav><a href="#explore">Explore</a><a href="#how">How it works</a><a href="#trust">Trust & safety</a></nav><button class="primary" id="login">Log in</button></header>
+
+<header class="site-header">
+  <div class="header-in">
+    <a class="logo" href="#">R<span>R</span> rentrelay</a>
+    <nav id="mainNav" aria-label="Main">
+      <a href="#explore">Explore</a>
+      <a href="#how">How it works</a>
+      <a href="#trust">Trust &amp; safety</a>
+    </nav>
+    <div class="header-actions">
+      <button class="secondary" id="listTop" type="button">List an item</button>
+      <button class="primary" id="login" type="button">Log in</button>
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="mainNav">☰</button>
+    </div>
+  </div>
+</header>
+
 <main>
-<section class="hero"><div><span class="eyebrow">THE CAMPUS RENTAL MARKETPLACE</span><h1>Need it for a while?<br><em>Rent it nearby.</em></h1><p>Find useful things shared by students around your campus. Borrow for the days you need, return with care.</p><div class="actions"><a class="primary" href="#explore">Explore categories ↗</a><button class="secondary" id="listHero">List an item</button></div><small class="hero-note">Student-first · Campus pickup · Clear rental details</small></div><div class="hero-art"><div class="hero-circle"></div><div class="hero-product"><span>📚</span><b>Useful things, shared.</b><small>Find your next campus essential</small></div><div class="float-tag tag1">🥼 Lab essentials</div><div class="float-tag tag2">🏸 Sports gear</div></div></section>
-<section class="explore" id="explore"><div class="section-head"><div><span class="eyebrow">BROWSE BY CATEGORY</span><h2>Explore what you need.</h2><p>Choose a category to discover items available for rent.</p></div><span class="sample">Sample listings · Demo campus</span></div>
-<div class="category-grid" id="categoryGrid">
-<button class="category-card study" data-cat="Study Materials"><span class="cat-emoji">✏️</span><span><b>Study Materials</b><small>Notes, stationery, calculators</small></span><i>↗</i></button>
-<button class="category-card books" data-cat="Books & Copies"><span class="cat-emoji">📚</span><span><b>Books & Copies</b><small>Textbooks, notebooks, novels</small></span><i>↗</i></button>
-<button class="category-card lab" data-cat="Lab Essentials"><span class="cat-emoji">🥼</span><span><b>Lab Essentials</b><small>Lab coats, practical items</small></span><i>↗</i></button>
-<button class="category-card indoor" data-cat="Indoor Games"><span class="cat-emoji">♟️</span><span><b>Indoor Games</b><small>Chess, carrom, board games</small></span><i>↗</i></button>
-<button class="category-card outdoor" data-cat="Outdoor Sports"><span class="cat-emoji">🏸</span><span><b>Outdoor Sports</b><small>Rackets, balls, sports gear</small></span><i>↗</i></button>
-<button class="category-card kitchen" data-cat="Utensils & Kitchen"><span class="cat-emoji">🍳</span><span><b>Utensils & Kitchen</b><small>Kettle, lunch box, cookware</small></span><i>↗</i></button>
+  <!-- ============ HOME ============ -->
+  <div id="home">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">THE CAMPUS RENTAL MARKETPLACE</span>
+        <h1>Need it for a while?<br><em>Rent it nearby.</em></h1>
+        <p>Find useful things shared by students around your campus. Borrow for the days you need, return with care.</p>
+        <form class="hero-search" id="heroSearch" role="search">
+          <input id="heroQuery" type="search" placeholder="Search calculators, lab coats, chess…" aria-label="Search items">
+          <button class="primary" type="submit">Search</button>
+        </form>
+        <div class="actions">
+          <a class="secondary" href="#explore">Browse categories ↓</a>
+          <button class="secondary" id="listHero" type="button">List an item</button>
+        </div>
+        <small class="hero-note">Student-first · Campus pickup · Clear rental details</small>
+      </div>
+      <div class="hero-art">
+        <div class="hero-circle"></div>
+        <div class="hero-product"><span>📚</span><b>Useful things, shared.</b><small>Find your next campus essential</small></div>
+        <div class="float-tag tag1">🥼 Lab essentials</div>
+        <div class="float-tag tag2">🏸 Sports gear</div>
+      </div>
+    </section>
+
+    <section class="explore" id="explore">
+      <div class="wrap">
+        <div class="section-head">
+          <div><span class="eyebrow">BROWSE BY CATEGORY</span><h2>Explore what you need.</h2><p>Pick a category, then narrow down by subcategory.</p></div>
+          <span class="sample">Sample listings · Demo campus</span>
+        </div>
+        <div class="category-grid" id="categoryGrid"></div>
+      </div>
+    </section>
+
+    <section class="featured" id="featured">
+      <div class="wrap">
+        <div class="section-head">
+          <div><span class="eyebrow">FEATURED</span><h2>Fresh on campus.</h2><p>A taste of what students are sharing.</p></div>
+        </div>
+        <div class="products" id="featuredGrid"></div>
+      </div>
+    </section>
+
+    <section class="how" id="how">
+      <div class="wrap">
+        <span class="eyebrow">SIMPLE BY DESIGN</span><h2>Borrow in three easy steps.</h2>
+        <div class="steps">
+          <article><b>01</b><div>⌕</div><h3>Explore items</h3><p>Choose a category and subcategory to find what you need.</p></article>
+          <article><b>02</b><div>↗</div><h3>Request your dates</h3><p>Check the price and request a rental period.</p></article>
+          <article><b>03</b><div>✓</div><h3>Meet &amp; return</h3><p>Inspect the item, meet on campus and return on time.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust" id="trust">
+      <div class="wrap">
+        <span class="eyebrow">BUILT AROUND ACCOUNTABILITY</span><h2>Clear details. Better sharing.</h2>
+        <p>Our planned rental journey keeps item condition, booking details and handover confirmations together.</p>
+        <div class="trust-points"><span>✓ Student verification planned</span><span>✓ Before-and-after condition records</span><span>✓ Booking history and clear rental terms</span></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ CATEGORY / SEARCH PAGE ============ -->
+  <section id="catalog" class="page hidden">
+    <div class="banner">
+      <div class="wrap">
+        <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+        <span class="eyebrow" id="catalogEyebrow">CATEGORY</span>
+        <h1 id="catalogTitle"></h1>
+        <p id="catalogDesc"></p>
+        <span class="big" id="catalogEmoji" aria-hidden="true"></span>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="subtiles" id="subtiles"></div>
+      <div class="toolbar">
+        <div class="count" id="resultCount"></div>
+        <div class="catalog-controls">
+          <input id="search" type="search" placeholder="Search in this list" aria-label="Search in this list">
+          <select id="sort" aria-label="Sort">
+            <option value="recommended">Recommended</option>
+            <option value="low">Price: low to high</option>
+            <option value="high">Price: high to low</option>
+          </select>
+        </div>
+      </div>
+      <div class="products" id="products"></div>
+      <div class="empty hidden" id="empty"><b>No items found.</b><br>Try another search or subcategory.</div>
+    </div>
+  </section>
+
+  <!-- ============ ITEM DETAIL PAGE ============ -->
+  <section id="detail" class="page hidden">
+    <div class="wrap" id="detailBody"></div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap foot-in">
+    <div><b class="logo">RR rentrelay</b><p>Borrow what you need. Earn from what you own.</p></div>
+    <div><h4>Categories</h4><div class="foot-links" id="footCats"></div></div>
+    <div><h4>Explore</h4><div class="foot-links"><a href="#how">How it works</a><a href="#trust">Trust &amp; safety</a></div></div>
+  </div>
+  <div class="wrap"><small>© 2026 RentRelay · Working name, subject to brand clearance. Sample listings shown for demo.</small></div>
+</footer>
+
+<div class="overlay hidden" id="overlay" role="dialog" aria-modal="true">
+  <div class="modal"><button class="close" id="close" type="button" aria-label="Close">×</button><div id="modalBody"></div></div>
 </div>
-<div class="catalog hidden" id="catalog"><div class="catalog-top"><div><button class="back" id="back">← All categories</button><span class="eyebrow" id="catalogEyebrow">CATEGORY</span><h2 id="catalogTitle"></h2><p id="catalogDesc"></p></div><div class="catalog-controls"><input id="search" placeholder="Search in this category"><select id="sort"><option value="recommended">Recommended</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></div></div>
-<div class="subcats" id="subcats"></div><div class="products" id="products"></div><p class="empty hidden" id="empty">No items found in this category. Try another search.</p></div>
-</section>
-<section class="how" id="how"><span class="eyebrow">SIMPLE BY DESIGN</span><h2>Borrow in three easy steps.</h2><div class="steps"><article><b>01</b><div>⌕</div><h3>Explore items</h3><p>Choose a category and find what you need.</p></article><article><b>02</b><div>↗</div><h3>Request your dates</h3><p>Check the price and request a rental period.</p></article><article><b>03</b><div>✓</div><h3>Meet & return</h3><p>Inspect the item, meet on campus and return on time.</p></article></div></section>
-<section class="trust" id="trust"><span class="eyebrow">BUILT AROUND ACCOUNTABILITY</span><h2>Clear details. Better sharing.</h2><p>Our planned rental journey keeps item condition, booking details and handover confirmations together.</p><div class="trust-points"><span>✓ Student verification planned</span><span>✓ Before-and-after condition records</span><span>✓ Booking history and clear rental terms</span></div></section>
-</main><footer><b class="logo">RR rentrelay</b><p>Borrow what you need. Earn from what you own.</p><small>© 2026 RentRelay · Working name, subject to brand clearance.</small></footer>
-<div class="overlay hidden" id="overlay"><div class="modal"><button class="close" id="close">×</button><div id="modalBody"></div></div></div><div class="toast" id="toast"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script></body></html>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>
