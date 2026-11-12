@@ -141,6 +141,7 @@ const state = { cat: null, sub: null, search: false };
 
 function openCategory(cid, subSlug) {
   const cat = catById(cid);
+  if (!cat) { openHome(); return; }
   const sub = cat.subs.find(s => slug(s.name) === subSlug) || null;
   state.cat = cat; state.sub = sub; state.search = false;
   if (!soft) { $("search").value = ""; $("sort").value = "recommended"; }
@@ -275,7 +276,7 @@ function route() {
   const raw = location.hash.replace(/^#/, "");
   if (raw.startsWith("/")) {
     const p = raw.slice(1).split("/").map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
-    if (p[0] === "c" && catById(p[1])) return openCategory(p[1], p[2]);
+    if (p[0] === "c") return catById(p[1]) ? openCategory(p[1], p[2]) : openHome();
     if (p[0] === "i" && p[1]) return openItem(p[1]);
     if (p[0] === "search") return openSearch(p[1] || "");
     return openHome();
@@ -415,7 +416,7 @@ async function showWelcome(user) {
 
 $("login").onclick = async () => {
   if ($("login").dataset.in && sb) { await sb.auth.signOut(); setAuthUI(null); toast("You’re logged out."); return; }
-  openLogin("signup");
+  openLogin("login");
 };
 
 /* ---------- List an item ---------- */
@@ -454,8 +455,10 @@ $("listTop").onclick = listItem;
 /* ---------- Live listings from Supabase (merged into the browse pages) ---------- */
 async function loadLive() {
   if (!sb) return;
-  const { data: rows, error } = await sb.from("listings").select("*").order("created_at", { ascending: false }).limit(200);
-  if (error || !rows) return;
+  let rows, error;
+  try { ({ data: rows, error } = await sb.from("listings").select("*").order("created_at", { ascending: false }).limit(200)); }
+  catch (e) { console.error("RentRelay: unable to load listings", e); return; }
+  if (error || !rows) { if (error) console.error("RentRelay: listings query failed", error); return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
   rows.forEach(r => {
     const cat = CATS.find(c => c.name === r.category);
@@ -464,10 +467,12 @@ async function loadLive() {
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
       desc: "Listed by a student on your campus. Meet the lender to inspect the item before you rent." });
   });
-  soft = true; renderHome(); route(); soft = false;
+  soft = true;
+  try { renderHome(); route(); } finally { soft = false; }
 }
 
 /* ---------- Start ---------- */
+window.addEventListener("error", event => { console.error("RentRelay runtime error:", event.error || event.message); });
 renderHome();
 route();
 if (sb) {
