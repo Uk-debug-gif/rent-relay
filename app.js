@@ -599,7 +599,7 @@ function renderListForm() {
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
     $("saveListing").textContent = "Saving listing…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, address, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, pickup_area: address, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
     if (error) {
       await sb.storage.from("listing-images").remove([imagePath]);
       toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
@@ -614,7 +614,7 @@ $("listTop").onclick = listItem;
 async function loadLive() {
   if (!sb) return;
   let rows, error;
-  try { ({ data: rows, error } = await sb.from("listings").select("*").order("created_at", { ascending: false }).limit(200)); }
+  try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
   catch (e) { console.error("RentRelay: unable to load listings", e); return; }
   if (error || !rows) { if (error) console.error("RentRelay: listings query failed", error); return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
@@ -623,7 +623,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.address || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
+      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
