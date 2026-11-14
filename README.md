@@ -8,17 +8,17 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - Search item titles, categories, conditions and descriptions.
 - Filter by minimum and maximum daily price; sort by price or recent live listings.
 - View item details and calculate an estimated rental total.
-- Submit a listing without signing in, including a photo and pickup location, once Supabase is configured.
+- Submit a public community listing without signing in, including a photo and pickup location; signed-in listings retain the member user ID.
 - Create an account or sign in using email OTP. Mobile number is collected as contact information but is not SMS-verified.
 - Live student listings are loaded from Supabase when the project is connected.
 
 ## Important prototype limitations
 
 - Catalogue entries included in the source are **demo/sample items**, not confirmed real offers.
-- The item detail “Request to rent” control is a **calculator/demo interaction only**. It does not contact an owner, create a booking, or reserve availability.
+- The item detail rental calculator is an **estimate only**. It does not contact an owner, create a booking, or reserve availability.
 - Online payments, deposits, refunds, booking approvals, cancellations, messaging, ratings/reviews, moderation workflows and dispute handling are not implemented.
 - Email OTP verifies the email address only. A mobile number is not verified.
-- Anonymous listings are allowed by the current database policy. The listing form does not establish who owns the item; do not treat a listing as verified.
+- Anonymous listings are allowed by the current database policy. Signed-in listings are associated with the member account, but identity and item ownership are not independently verified.
 - Public listing photos are served from a public Supabase Storage bucket. Do not upload sensitive or private images.
 
 ## 1. Create a Supabase project
@@ -41,9 +41,9 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 3. For real users, configure a custom SMTP provider and appropriate rate limits.
 4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs.
 
-## 4. Connect the frontend
+## 4. Frontend connection
 
-In `app.js`, replace only `SUPABASE_URL` and `SUPABASE_ANON_KEY` with the project's public URL and public anon/publishable key. Never use the service-role key in browser code. Commit the change and wait for GitHub Pages to deploy.
+The current `main` branch is already configured with this project URL and its public publishable key. Never put a service-role key or database password in browser code. If you rotate the publishable key, update `SUPABASE_ANON_KEY` in `app.js` and commit the change.
 
 ## 5. Optional admin email notification
 
@@ -51,8 +51,8 @@ The optional Supabase Edge Function lives in `supabase/functions/notify-new-user
 
 ## Pre-launch checklist
 
-- [ ] Configure Supabase URL and public key.
-- [ ] Run the latest `supabase/schema.sql`.
+- [x] Configure Supabase URL and public publishable key in the frontend.
+- [x] Create/update `listings`, `profiles`, policies, triggers and the `listing-images` bucket in Supabase.
 - [ ] Configure email OTP and production SMTP.
 - [ ] Test anonymous listing submission and image upload.
 - [ ] Test signup, login, and profile creation.
@@ -76,3 +76,12 @@ After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to by
 - Existing accounts can still sign in without re-accepting. If the terms materially change, a proper re-consent flow should be implemented.
 - The legal page is a working draft, not a lawyer-certified compliance document. Before public/commercial launch, fill the operator's legal identity, address, customer support and grievance officer details and obtain Indian legal review.
 - After changing the schema, run the latest `supabase/schema.sql` in Supabase SQL Editor.
+
+
+## Current user experience
+
+- Live community listings are loaded from Supabase and are prioritised in the featured section; demo examples remain clearly labelled.
+- A signed-in member's listing stores their Auth user ID; anonymous community listings store no owner ID.
+- Signed-in members can sign out from the header.
+- The detail page calculates an estimated rental total only. Booking requests, owner contact, availability, payment, messaging and dispute handling are not live.
+- Frontend JavaScript syntax and key UI wiring were checked after the latest changes. A real browser/device test and end-to-end signup/listing test are still required.
