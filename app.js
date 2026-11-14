@@ -119,7 +119,7 @@ function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").inn
 function card(it) {
   const c = catOf(it);
   return `<a class="product" href="#/i/${encodeURIComponent(it.id)}" style="--c:${c.c};--t:${c.t}" aria-label="View details: ${esc(it.title)}">` +
-    `<div class="product-art">${it.image_url ? `<img class="product-photo" src="${esc(it.image_url)}" alt="${esc(it.title)}" loading="lazy">` : `<span class="emoji" aria-hidden="true">${esc(it.emoji)}</span>`}<span class="condition">${esc(it.cond)}</span><span class="listing-kind">${it.live ? "Student listing" : "Demo item"}</span></div>` +
+    `<div class="product-art">${it.image_url ? `<img class="product-photo" src="${esc(it.image_url)}" alt="${esc(it.title)}" loading="lazy">` : `<span class="emoji" aria-hidden="true">${esc(it.emoji)}</span>`}<span class="condition">${esc(it.cond)}</span><span class="listing-kind">${it.live ? (it.owner_id ? "Member listing" : "Community listing") : "Demo item"}</span></div>` +
     `<div class="product-info"><small>${esc(it.sub)}</small><h3>${esc(it.title)}</h3><div class="location">⌖ ${esc(it.address || "Campus pickup")}</div>` +
     `<div class="product-bottom"><span class="price">${money(it.price)}<small> / day</small></span><span class="details">View details →</span></div></div></a>`;
 }
@@ -133,7 +133,10 @@ function renderHome() {
       `<span class="cat-text"><b>${esc(c.name)}</b><small>${esc(c.blurb)}</small>` +
       `<em>${c.subs.length} subcategories · ${n} items</em></span><i aria-hidden="true">→</i></a>`;
   }).join("");
-  const liveFirst = ITEMS.filter(i => i.live).slice(0, 4);
+  const liveItems = ITEMS.filter(i => i.live);
+  const liveFirst = liveItems.slice(0, 4);
+  $("listingStatus").textContent = liveItems.length ? `${liveItems.length} live student listing${liveItems.length === 1 ? "" : "s"} · Demo items labelled` : "Demo catalogue · Be the first to list";
+  $("featuredDesc").textContent = liveItems.length ? "Real community listings appear first. Demo examples are labelled." : "Explore sample items while the campus community adds its first listings.";
   const sampleFill = CATS.map(c => ITEMS.find(i => i.cat === c.id)).filter(Boolean);
   $("featuredGrid").innerHTML = [...liveFirst, ...sampleFill.filter(i => !liveFirst.some(x => x.id === i.id))].slice(0, 4).map(card).join("");
   $("footCats").innerHTML = CATS.map(c => `<a href="#/c/${c.id}">${esc(c.name)}</a>`).join("");
@@ -183,12 +186,13 @@ function renderGrid() {
   let list = state.search ? ITEMS.slice() : ITEMS.filter(i => i.cat === state.cat.id && (!state.sub || i.sub === state.sub.name));
   const minPrice = Number($("minPrice").value || 0);
   const maxPrice = Number($("maxPrice").value || Infinity);
-  if (q) list = list.filter(i => (i.title + " " + i.sub + " " + catOf(i).name + " " + i.desc + " " + i.cond).toLowerCase().includes(q));
+  if (q) list = list.filter(i => (i.title + " " + i.sub + " " + catOf(i).name + " " + i.desc + " " + i.cond + " " + (i.address || "")).toLowerCase().includes(q));
   list = list.filter(i => i.price >= minPrice && i.price <= maxPrice);
   if (sort === "low") list.sort((a, b) => a.price - b.price);
   else if (sort === "high") list.sort((a, b) => b.price - a.price);
   else if (sort === "newest") list.sort((a, b) => Number(!!b.live) - Number(!!a.live) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
-  $("resultCount").textContent = `${list.length} item${list.length === 1 ? "" : "s"}`;
+  const liveCount = list.filter(i => i.live).length;
+  $("resultCount").textContent = `${list.length} item${list.length === 1 ? "" : "s"} · ${liveCount} live ${liveCount === 1 ? "listing" : "listings"}`;
   $("products").innerHTML = list.map(card).join("");
   $("empty").classList.toggle("hidden", list.length > 0);
   $("clearFilters").classList.toggle("hidden", !q && !minPrice && maxPrice === Infinity);
@@ -219,7 +223,7 @@ function openItem(id) {
         <div class="big-price">${money(it.price)}<small> / day</small></div>
         <p class="desc">${esc(it.desc)}</p>
         <div class="rent-box">
-          <h2>Request to rent</h2>
+          <h2>Estimate your rental</h2>
           <label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>
           <div class="rent-row">
             <label>Start date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
@@ -228,8 +232,8 @@ function openItem(id) {
             </label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
-          <button class="primary wide" id="rentBtn" type="button">Request to rent</button>
-          <div class="note" id="rentMsg">Demo listing: real booking and payment will be enabled after backend setup.</div>
+          <button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>
+          <div class="note" id="rentMsg">This is a price estimate only. It does not send a booking request or reserve the item.</div>
         </div>
         <ul class="checklist">
           <li><b>At handover:</b> meet the lender on campus and inspect the item together.</li>
@@ -259,9 +263,9 @@ function openItem(id) {
     const startValue = $("rentStart").value;
     if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
-    $("rentBtn").disabled = true; $("rentBtn").textContent = "Request noted ✓";
+    $("rentBtn").disabled = true; $("rentBtn").textContent = "Estimate calculated ✓";
     const m = $("rentMsg"); m.className = "note ok";
-    m.textContent = `Thanks, ${name}! This is a demo: your request for ${it.title} (${n} day${n > 1 ? "s" : ""}, ${money(it.price * n)}) is not sent yet. Booking will be connected in the next phase.`;
+    m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent; contact and booking tools are not live yet.`;
   };
   document.title = it.title + " — " + cat.name + " | RentRelay";
   toTop();
@@ -322,7 +326,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal()
 /* ---------- Sign up / log in (Supabase email OTP) ----------
    Sign up: mobile number → email → email OTP → full legal name → account complete.
    Mobile is contact information only; it is never verified by SMS. */
-let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null;
+let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null, currentSession = null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 function cleanMobile(raw) {
@@ -332,9 +336,10 @@ function cleanMobile(raw) {
   return null;
 }
 function setAuthUI(session) {
-  $("login").textContent = "Log in";
-  $("login").hidden = !!session;
-  $("login").dataset.in = "";
+  currentSession = session && session.user ? session : null;
+  $("login").textContent = "Sign up / Log in";
+  $("login").hidden = !!currentSession;
+  $("logout").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -451,6 +456,14 @@ async function showWelcome(user) {
 }
 
 $("login").onclick = () => openLogin("signup");
+$("logout").onclick = async () => {
+  if (!sb || !currentSession) return;
+  $("logout").disabled = true;
+  const { error } = await sb.auth.signOut();
+  $("logout").disabled = false;
+  if (error) { toast("Could not sign out. Please try again."); return; }
+  setAuthUI(null); closeModal(); toast("You have been signed out.");
+};
 
 /* ---------- List an item ---------- */
 function listItem() {
@@ -495,7 +508,7 @@ function renderListForm() {
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
     $("saveListing").textContent = "Saving listing…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, address, image_url: publicImage.publicUrl, owner_id: null });
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, address, image_url: publicImage.publicUrl, owner_id: currentSession?.user?.id || null });
     if (error) {
       await sb.storage.from("listing-images").remove([imagePath]);
       toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
@@ -519,7 +532,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Listed by a student on your campus. Meet the lender to inspect the item before you rent.", address: r.address || "", image_url: r.image_url || "", created_at: r.created_at || "" });
+      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.address || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
