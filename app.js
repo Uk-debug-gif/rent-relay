@@ -233,7 +233,7 @@ function openItem(id) {
             </label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
-          ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : `<button class="primary wide" id="signInRequest" type="button">Sign in to request this item</button>`) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
+          ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : ``) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
           <div class="note" id="rentMsg">${it.live && it.owner_id ? "Your request goes to the item owner. The rental is not confirmed until they accept." : "This is a price estimate only. It does not send a booking request or reserve the item."}</div>
         </div>
         <ul class="checklist">
@@ -263,7 +263,6 @@ function openItem(id) {
     contactPanel.hidden = true;
   }
 
-  if ($("signInRequest")) $("signInRequest").onclick = () => openLogin("login");
   const days = $("rentDays");
   const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
   const update = () => {
