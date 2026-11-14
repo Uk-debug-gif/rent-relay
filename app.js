@@ -351,17 +351,15 @@ $("close").onclick = closeModal;
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
-/* ---------- Sign up / log in (Supabase email OTP) ----------
-   Sign up: mobile number → email → email confirmation link → account complete.
-   Mobile is contact information only; it is never verified by SMS. */
-let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null, currentSession = null, welcomeShownFor = null;
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/* ---------- Email + password authentication ---------- */
+let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", currentSession = null, welcomeShownFor = null;
+const EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/;
 const AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
+
 function cleanMobile(raw) {
-  const v = String(raw).trim().replace(/[\s()-]/g, "");
-  if (/^[6-9]\d{9}$/.test(v)) return "+91" + v;               // 10-digit Indian number
-  if (/^\+[1-9]\d{7,14}$/.test(v)) return v;                   // already with country code
+  const v = String(raw).trim().replace(/[\\s()-]/g, "");
+  if (/^[6-9]\\d{9}$/.test(v)) return "+91" + v;
+  if (/^\\+[1-9]\\d{7,14}$/.test(v)) return v;
   return null;
 }
 function setAuthUI(session) {
@@ -371,177 +369,134 @@ function setAuthUI(session) {
 }
 function needSupabase() {
   if (sb) return false;
-  toast("Supabase setup pending — add project URL and anon key first.");
+  toast("Supabase setup pending — add project URL and publishable key first.");
   return true;
 }
 function friendlyAuthError(err) {
   const m = String(err && err.message || "Something went wrong");
-  const code = String(err && err.code || "");
-  if (/email_address_not_authorized/i.test(code + " " + m)) return "Supabase's test email service cannot send to this address. RentRelay needs a configured email provider before public signup.";
-  if (/email rate limit exceeded/i.test(m)) return "RentRelay has reached Supabase's hourly email limit. No new email was sent. Please try later; repeated clicks will not fix it.";
-  const wait = m.match(/only request this after (\\d+) seconds/i);
-  if (wait) return `Please wait ${wait[1]} seconds before requesting another email.`;
-  if (/request rate limit reached/i.test(m)) return "Too many login or signup attempts from this network. Please wait a few minutes and try once.";
-  if (/signups? not allowed|not found/i.test(m)) return "No account found with this email. Please sign up first.";
-  if (/expired|invalid/i.test(m)) return "That confirmation link is invalid or expired. Request a fresh email link.";
+  if (/email rate limit exceeded/i.test(m)) return "Email service limit reached. Please wait before trying again.";
+  if (/password should be at least|weak password/i.test(m)) return "Choose a stronger password (at least 8 characters).";
+  if (/invalid login credentials/i.test(m)) return "Email or password is incorrect. If you forgot your password, use Forgot password.";
+  if (/email not confirmed/i.test(m)) return "Please verify your email using the confirmation link first.";
+  if (/user already registered/i.test(m)) return "An account already exists for this email. Please log in instead.";
+  if (/expired|invalid/i.test(m)) return "That link is invalid or expired. Request a fresh one.";
   return m;
 }
-
-
-function openCheckEmail(mode) {
-  const heading = mode === "signup" ? "Confirm your email" : "Check your email";
-  const message = mode === "signup"
-    ? "We sent a confirmation link to your email. Open it to finish creating your RentRelay account."
-    : "We sent a secure sign-in link to your email. Open it to log in to RentRelay.";
-  openModal(`<span class="eyebrow">EMAIL SENT</span><h2>${heading}</h2>
-    <p>${message}</p><p><b>${esc(signupEmail)}</b></p>
-    <p class="note">Check your inbox and spam folder. The link can only be used once.</p>
-    <button class="primary wide" id="resendLink" type="button">Resend email</button>
-    <button class="back" id="changeEmail" type="button">← Use a different email</button>`);
-  $("changeEmail").onclick = () => openLogin(mode);
-  const resendBtn = $("resendLink");
-  let resendSeconds = 60, resendInterval = null, resendBusy = false;
-  const startResendCooldown = () => {
-    clearInterval(resendInterval);
-    resendSeconds = 60;
-    resendBtn.disabled = true;
-    resendBtn.textContent = `Resend email in ${resendSeconds}s`;
-    resendInterval = setInterval(() => {
-      resendSeconds -= 1;
-      if (!resendBtn.isConnected) { clearInterval(resendInterval); return; }
-      if (resendSeconds <= 0) {
-        clearInterval(resendInterval);
-        resendBtn.disabled = false;
-        resendBtn.textContent = "Resend email";
-      } else {
-        resendBtn.textContent = `Resend email in ${resendSeconds}s`;
-      }
-    }, 1000);
-  };
-  startResendCooldown();
-  resendBtn.onclick = async () => {
-    if (resendBusy || needSupabase()) return;
-    resendBusy = true; resendBtn.disabled = true; resendBtn.textContent = "Sending…";
-    const options = { shouldCreateUser: mode === "signup", emailRedirectTo: AUTH_REDIRECT_URL };
-    if (mode === "signup") options.data = { mobile: signupMobile, terms_accepted: true, terms_version: TERMS_VERSION };
-    try {
-      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options });
-      if (error) {
-        toast(friendlyAuthError(error));
-        resendBusy = false;
-        if (/email rate limit exceeded/i.test(String(error.message || ""))) {
-          resendBtn.textContent = "Email limit reached";
-          return;
-        }
-        resendBtn.disabled = false; resendBtn.textContent = "Resend email";
-        return;
-      }
-      toast("A new confirmation link has been sent. Use the latest email.");
-      resendBusy = false;
-      startResendCooldown();
-    } catch (error) {
-      toast("Could not contact the email service. Please try again later.");
-      resendBusy = false; resendBtn.disabled = false; resendBtn.textContent = "Resend email";
-    }
-  };
+function passwordRules(password) {
+  return password.length >= 8;
 }
-function openLogin(step = "signup") {
+function openLogin(step = "login") {
   if (step === "signup") {
-    openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Sign up to RentRelay</h2>
-      <p>Enter your mobile number and email. We’ll send a confirmation link to your email.</p>
-      <label>Name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
+    openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Join RentRelay</h2>
+      <p>Create your account with an email and password. We’ll send one email verification link.</p>
+      <label>Full name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
-      <label>Email address<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <label class="terms-consent"><input id="suTerms" type="checkbox"><span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a> and <a href="terms.html#privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.</span></label>
-      <p class="terms-required" id="termsRequired" role="alert">You must accept the Terms &amp; Conditions and Privacy Notice to create an account.</p>
-      <button class="primary wide" id="suGo" type="button">Accept &amp; send confirmation link</button>
-      <button class="back" id="toLogin" type="button">Already have an account? Sign in</button>`);
+      <label>Email address<input id="suEmail" type="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
+      <label>Password<input id="suPassword" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"></label>
+      <label>Confirm password<input id="suConfirm" type="password" autocomplete="new-password" minlength="8" placeholder="Enter password again"></label>
+      <p class="form-hint">Use at least 8 characters. Never share your password.</p>
+      <label class="terms-consent"><input id="suTerms" type="checkbox"><span>I agree to the <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a> and <a href="terms.html#privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.</span></label>
+      <p class="terms-required" id="termsRequired" role="alert">Please accept the Terms &amp; Conditions and Privacy Notice.</p>
+      <button class="primary wide" id="suGo" type="button">Create account</button>
+      <button class="back" id="toLogin" type="button">Already have an account? Log in</button>`);
     $("toLogin").onclick = () => openLogin("login");
     $("suGo").onclick = async () => {
-      const name = $("suName").value.trim().replace(/\s+/g, " ");
-      const mobile = cleanMobile($("suMobile").value), email = $("suEmail").value.trim().toLowerCase();
-      if (!$("suTerms").checked) { $("termsRequired").classList.add("show"); $("suTerms").focus(); toast("Please accept the Terms & Conditions to continue."); return; }
+      const name = $("suName").value.trim().replace(/\\s+/g, " ");
+      const mobile = cleanMobile($("suMobile").value);
+      const email = $("suEmail").value.trim().toLowerCase();
+      const password = $("suPassword").value;
+      const confirm = $("suConfirm").value;
+      if (!$("suTerms").checked) { $("termsRequired").classList.add("show"); return; }
       $("termsRequired").classList.remove("show");
-      if (name.length < 2 || /[0-9]/.test(name)) { toast("Enter your name using letters."); return; }
-      if (!mobile) { toast("Enter a valid mobile number (10 digits, or with country code like +91…)."); return; }
+      if (name.length < 2 || /[0-9]/.test(name)) { toast("Enter your full name."); return; }
+      if (!mobile) { toast("Enter a valid mobile number."); return; }
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
+      if (!passwordRules(password)) { toast("Password must be at least 8 characters."); return; }
+      if (password !== confirm) { toast("Passwords do not match."); return; }
       if (needSupabase()) return;
-      $("suGo").disabled = true; $("suGo").textContent = "Sending email…";
-      const acceptedAt = new Date().toISOString();
+      $("suGo").disabled = true; $("suGo").textContent = "Creating account…";
       try {
-        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: AUTH_REDIRECT_URL, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
-        if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Accept & send confirmation link"; return; }
-        signupEmail = email; signupMobile = mobile; authFlow = "signup"; openCheckEmail("signup");
+        const { error } = await sb.auth.signUp({
+          email, password,
+          options: {
+            emailRedirectTo: AUTH_REDIRECT_URL,
+            data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() }
+          }
+        });
+        if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Create account"; return; }
+        signupEmail = email; signupMobile = mobile; authFlow = "signup";
+        openModal(`<span class="eyebrow">VERIFY YOUR EMAIL</span><h2>Check your inbox</h2>
+          <p>We sent one confirmation link to <b>${esc(email)}</b>. Open it once to activate your RentRelay account.</p>
+          <p class="note">After verification, log in anytime using your email and password. You won’t need a sign-in link again.</p>
+          <button class="primary wide" id="verifyDone" type="button">Back to log in</button>`);
+        $("verifyDone").onclick = () => openLogin("login");
       } catch (error) {
-        toast("Could not contact the email service. Please try again later.");
-        $("suGo").disabled = false; $("suGo").textContent = "Accept & send confirmation link";
+        toast("Could not create the account. Please try again later.");
+        $("suGo").disabled = false; $("suGo").textContent = "Create account";
       }
     };
   } else if (step === "login") {
-    openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in</h2>
-      <p>Enter your email and we’ll send you a secure sign-in link.</p>
-      <label>Email<input id="liEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <button class="primary wide" id="liGo" type="button">Send sign-in link</button>
-      <button class="back" id="toSignup" type="button">New here? Create an account</button>
-      `);
+    openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in to RentRelay</h2>
+      <p>Use your registered email and password.</p>
+      <label>Email address<input id="liEmail" type="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
+      <label>Password<input id="liPassword" type="password" autocomplete="current-password" placeholder="Your password"></label>
+      <button class="primary wide" id="liGo" type="button">Log in</button>
+      <button class="back" id="forgotPassword" type="button">Forgot password?</button>
+      <button class="back" id="toSignup" type="button">New to RentRelay? Create an account</button>`);
     $("toSignup").onclick = () => openLogin("signup");
+    $("forgotPassword").onclick = () => openLogin("forgot");
     $("liGo").onclick = async () => {
-      const email = $("liEmail").value.trim().toLowerCase();
-      if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
+      const email = $("liEmail").value.trim().toLowerCase(), password = $("liPassword").value;
+      if (!EMAIL_RE.test(email) || !password) { toast("Enter your email and password."); return; }
       if (needSupabase()) return;
-      $("liGo").disabled = true; $("liGo").textContent = "Sending email…";
+      $("liGo").disabled = true; $("liGo").textContent = "Logging in…";
       try {
-        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: AUTH_REDIRECT_URL } });
-        if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send sign-in link"; return; }
-        signupEmail = email; authFlow = "login"; openCheckEmail("login");
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Log in"; return; }
+        setAuthUI(data.session); closeModal(); toast("You’re logged in.");
       } catch (error) {
-        toast("Could not contact the email service. Please try again later.");
-        $("liGo").disabled = false; $("liGo").textContent = "Send sign-in link";
+        toast("Could not log in. Please try again.");
+        $("liGo").disabled = false; $("liGo").textContent = "Log in";
       }
     };
-  } else if (step === "name") {
-    openModal(`<span class="eyebrow">ONE LAST STEP</span><h2>Your full name</h2>
-      <p>Enter your real full name as shown on your official ID. We do not need your Aadhaar or PAN number or a photo of the document.</p>
-      <label>Full legal name<input id="suName" autocomplete="name" maxlength="60" placeholder="Enter your full name"></label>
-      <button class="primary wide" id="finishSignup" type="button">Verify &amp; create account</button>
-      <p class="note">Your mobile number is saved only so other students can contact you.</p>`);
-    $("finishSignup").onclick = async () => {
-      const name = $("suName").value.trim().replace(/\s+/g, " ");
-      if (name.length < 2 || /[0-9]/.test(name)) { toast("Enter your full name using letters."); return; }
-      $("finishSignup").disabled = true; $("finishSignup").textContent = "Creating account…";
-      const { data, error } = await sb.auth.updateUser({ data: { full_name: name, mobile: signupMobile } });
-      if (error) { toast(friendlyAuthError(error)); $("finishSignup").disabled = false; $("finishSignup").textContent = "Verify & create account"; return; }
-      showWelcome(data.user);
-    };
-  } else if (step === "otp") {
-    openModal(`<span class="eyebrow">VERIFY YOUR EMAIL</span><h2>Enter the code</h2>
-      <p>We sent a code to <b>${esc(signupEmail)}</b>. It can take a minute. Check spam too.</p>
-      <label>Verification code<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Enter code"></label>
-      <button class="primary wide" id="verifyOtp" type="button">Verify &amp; continue</button>
-      <button class="back" id="resend" type="button">Resend code</button>
-      <button class="back" id="changeEmail" type="button">← Use a different email</button>`);
-    $("changeEmail").onclick = () => openLogin("signup");
-    const rs = $("resend");
-    const cooldown = () => { let s = 30; rs.disabled = true; clearInterval(resendTimer); resendTimer = setInterval(() => { s--; if (!$("resend")) { clearInterval(resendTimer); return; } if (s <= 0) { clearInterval(resendTimer); rs.disabled = false; rs.textContent = "Resend code"; } else rs.textContent = `Resend code in ${s}s`; }, 1000); rs.textContent = "Resend code in 30s"; };
-    cooldown();
-    rs.onclick = async () => {
+  } else if (step === "forgot") {
+    openModal(`<span class="eyebrow">ACCOUNT RECOVERY</span><h2>Reset your password</h2>
+      <p>Enter your registered email. We’ll send a password-reset link.</p>
+      <label>Email address<input id="resetEmail" type="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
+      <button class="primary wide" id="sendReset" type="button">Send reset link</button>
+      <button class="back" id="backLogin" type="button">Back to log in</button>`);
+    $("backLogin").onclick = () => openLogin("login");
+    $("sendReset").onclick = async () => {
+      const email = $("resetEmail").value.trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
       if (needSupabase()) return;
-      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options: { shouldCreateUser: authFlow === "signup", data: authFlow === "signup" ? { mobile: signupMobile, terms_accepted: true, terms_version: TERMS_VERSION } : undefined } });
-      if (error) { toast(friendlyAuthError(error)); return; }
-      toast("A new code was sent."); cooldown();
-    };
-    $("verifyOtp").onclick = async () => {
-      const token = $("otp").value.trim();
-      if (!/^\d{6,10}$/.test(token)) { toast("Enter the code from your email (numbers only)."); return; }
-      if (needSupabase()) return;
-      $("verifyOtp").disabled = true; $("verifyOtp").textContent = "Verifying…";
-      const { data, error } = await sb.auth.verifyOtp({ email: signupEmail, token, type: "email" });
-      if (error || !data || !data.user) { toast(friendlyAuthError(error)); $("verifyOtp").disabled = false; $("verifyOtp").textContent = "Verify & continue"; return; }
-      clearInterval(resendTimer);
-      setAuthUI(data.session || true);
-      showWelcome(data.user);
+      $("sendReset").disabled = true; $("sendReset").textContent = "Sending…";
+      try {
+        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: AUTH_REDIRECT_URL });
+        if (error) { toast(friendlyAuthError(error)); $("sendReset").disabled = false; $("sendReset").textContent = "Send reset link"; return; }
+        openModal(`<span class="eyebrow">EMAIL SENT</span><h2>Check your inbox</h2><p>If an account exists for <b>${esc(email)}</b>, a password-reset link has been sent. Open the latest link to choose a new password.</p><button class="primary wide" id="resetBack" type="button">Back to log in</button>`);
+        $("resetBack").onclick = () => openLogin("login");
+      } catch (error) {
+        toast("Could not send the reset email. Please try again later.");
+        $("sendReset").disabled = false; $("sendReset").textContent = "Send reset link";
+      }
     };
   }
+}
+function openSetNewPassword() {
+  openModal(`<span class="eyebrow">ACCOUNT RECOVERY</span><h2>Choose a new password</h2>
+    <label>New password<input id="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"></label>
+    <label>Confirm new password<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Enter it again"></label>
+    <button class="primary wide" id="saveNewPassword" type="button">Update password</button>`);
+  $("saveNewPassword").onclick = async () => {
+    const password = $("newPassword").value, confirm = $("confirmNewPassword").value;
+    if (!passwordRules(password)) { toast("Password must be at least 8 characters."); return; }
+    if (password !== confirm) { toast("Passwords do not match."); return; }
+    $("saveNewPassword").disabled = true; $("saveNewPassword").textContent = "Updating…";
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) { toast(friendlyAuthError(error)); $("saveNewPassword").disabled = false; $("saveNewPassword").textContent = "Update password"; return; }
+    closeModal(); toast("Password updated. You can now log in with it.");
+  };
 }
 
 async function showWelcome(user) {
