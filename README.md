@@ -53,11 +53,11 @@ The optional Supabase Edge Function lives in `supabase/functions/notify-new-user
 
 - [x] Configure Supabase URL and public publishable key in the frontend.
 - [x] Create/update `listings`, `profiles`, policies, triggers and the `listing-images` bucket in Supabase.
-- [ ] Configure the production Site URL and allowed redirect URL for the magic link.
-- [ ] Test anonymous listing submission and image upload.
+- [ ] Configure the production Site URL and allowed redirect URL for confirmation and password reset.
+- [ ] Test signed-in listing submission and owner-only photo deletion.
 - [ ] Test signup, login, and profile creation.
 - [ ] Test category/search/price filters on desktop and mobile.
-- [ ] Add a real booking-request flow with owner approval and availability.
+- [ ] Test booking requests, owner decisions, renter cancellation and overlapping-date rejection.
 - [ ] Add verified ownership/contact controls, reporting and moderation before opening to a wider campus.
 - [ ] Add payment, refund and dispute processes only after the rental workflow and policies are defined.
 - [ ] Run browser, accessibility, security and performance testing on real devices.
