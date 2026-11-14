@@ -4,7 +4,7 @@
 
 const SUPABASE_URL = "https://tvtmhisivwctprqmbzbj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Y2qhEXQVAEdSD5izte37yQ_ZZGLcB9Y";
-const TERMS_VERSION = "2026-11-12";
+const TERMS_VERSION = "2026-11-14";
 const supabaseReady = !!(window.supabase && SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_"));
 const sb = supabaseReady ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -223,8 +223,8 @@ function openItem(id) {
         <div class="big-price">${money(it.price)}<small> / day</small></div>
         <p class="desc">${esc(it.desc)}</p>
         <div class="rent-box">
-          <h2>Estimate your rental</h2>
-          <label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>
+          <h2>${it.live && it.owner_id ? "Request this rental" : "Estimate your rental"}</h2>
+          ${it.live && it.owner_id ? `<label>Message to the owner (optional)<textarea id="rentMessage" rows="2" maxlength="500" placeholder="Hi, is this item available for these dates?"></textarea></label>` : `<label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>`}
           <div class="rent-row">
             <label>Start date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
             <label>Rental days
@@ -232,8 +232,8 @@ function openItem(id) {
             </label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
-          <button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>
-          <div class="note" id="rentMsg">This is a price estimate only. It does not send a booking request or reserve the item.</div>
+          <button class="primary wide" id="rentBtn" type="button">${it.live && it.owner_id ? "Send rental request" : "Calculate rental total"}</button>
+          <div class="note" id="rentMsg">${it.live && it.owner_id ? "Your request goes to the item owner. The rental is not confirmed until they accept." : "This is a price estimate only. It does not send a booking request or reserve the item."}</div>
         </div>
         <ul class="checklist">
           <li><b>At handover:</b> meet the lender on campus and inspect the item together.</li>
@@ -258,14 +258,23 @@ function openItem(id) {
   days.addEventListener("input", update); days.addEventListener("change", update); $("rentStart").addEventListener("change", update);
   update();
   $("rentBtn").onclick = () => {
-    const name = $("rentName").value.trim();
-    if (!name) { toast("Please enter your name first."); $("rentName").focus(); return; }
+    const name = $("rentName") ? $("rentName").value.trim() : "";
+    if (!it.live || !it.owner_id) { if (!name) { toast("Please enter your name first."); $("rentName").focus(); return; } }
     const startValue = $("rentStart").value;
     if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
     $("rentBtn").disabled = true; $("rentBtn").textContent = "Estimate calculated ✓";
     const m = $("rentMsg"); m.className = "note ok";
-    m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent; contact and booking tools are not live yet.`;
+    if (it.live && it.owner_id) {
+      if (!currentSession?.user?.id) { toast("Please sign in before sending a rental request."); openLogin("login"); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
+      if (currentSession.user.id === it.owner_id) { toast("You cannot request your own listing."); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
+      $("rentBtn").textContent = "Sending request…";
+      const { error } = await sb.from("booking_requests").insert({ listing_id: it.id.replace("live-", ""), renter_id: currentSession.user.id, start_date: startValue, rental_days: n, message: $("rentMessage").value.trim() });
+      if (error) { toast("Could not send request: " + error.message); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
+      m.className = "note ok"; m.textContent = "Request sent. The owner must accept it before contact details are shared. Open My requests to track it."; $("rentBtn").textContent = "Request sent ✓";
+      return;
+    }
+    m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent.`;
   };
   document.title = it.title + " — " + cat.name + " | RentRelay";
   toTop();
@@ -340,6 +349,7 @@ function setAuthUI(session) {
   $("login").textContent = "Sign up / Log in";
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
+  if ($("dashboard")) $("dashboard").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -464,6 +474,43 @@ $("logout").onclick = async () => {
   if (error) { toast("Could not sign out. Please try again."); return; }
   setAuthUI(null); closeModal(); toast("You have been signed out.");
 };
+
+
+/* ---------- Booking dashboard + private contact reveal ---------- */
+async function openDashboard() {
+  if (!currentSession?.user?.id) { openLogin("login"); return; }
+  openModal('<span class="eyebrow">YOUR RENTRELAY</span><h2>My requests</h2><div id="bookingDashboard">Loading your requests…</div>');
+  const host = $("bookingDashboard");
+  const { data: requests, error } = await sb.from("booking_requests").select("*").order("created_at", { ascending: false }).limit(100);
+  if (error) { host.textContent = "Could not load requests: " + error.message; return; }
+  if (!requests?.length) { host.innerHTML = '<p>No booking requests yet. When you request a member listing or receive a request, it will appear here.</p>'; return; }
+  const listingIds = [...new Set(requests.map(r => r.listing_id))];
+  const { data: listings } = await sb.from("listings").select("id,title,owner_id,price_per_day").in("id", listingIds);
+  const byId = Object.fromEntries((listings || []).map(l => [l.id,l]));
+  host.innerHTML = requests.map(r => {
+    const l = byId[r.listing_id] || {};
+    const incoming = l.owner_id === currentSession.user.id;
+    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Incoming request" : "Your request"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
+  }).join("");
+  host.querySelectorAll("[data-accept],[data-decline]").forEach(btn => btn.onclick = async () => {
+    const id = btn.dataset.accept || btn.dataset.decline, status = btn.dataset.accept ? "accepted" : "declined";
+    btn.disabled = true;
+    const { error: updateError } = await sb.from("booking_requests").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+    if (updateError) { toast("Could not update request: " + updateError.message); btn.disabled = false; return; }
+    toast(status === "accepted" ? "Request accepted. Both participants can now view contact details." : "Request declined.");
+    openDashboard();
+  });
+  host.querySelectorAll("[data-contact]").forEach(btn => btn.onclick = async () => {
+    btn.disabled = true;
+    const { data, error: contactError } = await sb.rpc("booking_contact", { p_booking_id: btn.dataset.contact });
+    btn.disabled = false;
+    const target = $("contact-" + btn.dataset.contact);
+    if (contactError || !data?.length) { target.textContent = "Contact details are not available yet. Both accounts need a saved mobile number."; return; }
+    const c = data[0];
+    target.innerHTML = `<p>Lender: ${esc(c.owner_name)} · <a href="tel:${esc(c.owner_mobile || "")}">${esc(c.owner_mobile || "No number saved")}</a></p><p>Renter: ${esc(c.renter_name)} · <a href="tel:${esc(c.renter_mobile || "")}">${esc(c.renter_mobile || "No number saved")}</a></p>`;
+  });
+}
+if ($("dashboard")) $("dashboard").onclick = openDashboard;
 
 /* ---------- List an item ---------- */
 function listItem() {
