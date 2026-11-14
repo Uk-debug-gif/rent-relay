@@ -99,12 +99,12 @@ end $$;
 revoke execute on function public.generate_username() from public, anon, authenticated;
 revoke execute on function public.handle_verified_user() from public, anon, authenticated;
 -- This event-trigger helper is not a client-facing RPC; keep it inaccessible to API roles.
-do $
+do $$
 begin
   if to_regprocedure('public.rls_auto_enable()') is not null then
     execute 'revoke execute on function public.rls_auto_enable() from public, anon, authenticated';
   end if;
-end $;
+end $$;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
