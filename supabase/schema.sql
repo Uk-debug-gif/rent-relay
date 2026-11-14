@@ -327,6 +327,7 @@ revoke insert on public.listings from anon, authenticated;
 grant insert (owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area)
   on public.listings to authenticated;
 revoke update, delete on public.listings from anon;
+revoke update on public.listings from authenticated;
 grant update (title,category,subcategory,price_per_day,condition,description,image_url,pickup_area)
   on public.listings to authenticated;
 grant delete on public.listings to authenticated;
