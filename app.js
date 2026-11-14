@@ -367,9 +367,8 @@ function cleanMobile(raw) {
 function setAuthUI(session) {
   currentSession = session && session.user ? session : null;
   $("login").hidden = !!currentSession;
-  if ($("signup")) $("signup").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
-  if ($("requestBox")) $("requestBox").hidden = !currentSession;
+  if ($("myRequest")) $("myRequest").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -439,7 +438,9 @@ function openLogin(step = "signup") {
       <p>Enter your email and we’ll send you a secure sign-in link.</p>
       <label>Email<input id="liEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
       <button class="primary wide" id="liGo" type="button">Send sign-in link</button>
+      <button class="back" id="toSignup" type="button">New here? Create an account</button>
       `);
+    $("toSignup").onclick = () => openLogin("signup");
     $("liGo").onclick = async () => {
       const email = $("liEmail").value.trim().toLowerCase();
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
@@ -508,7 +509,6 @@ async function showWelcome(user) {
 }
 
 $("login").onclick = () => openLogin("login");
-if ($("signup")) $("signup").onclick = () => openLogin("signup");
 $("logout").onclick = async () => {
   if (!sb || !currentSession) return;
   $("logout").disabled = true;
@@ -522,7 +522,7 @@ $("logout").onclick = async () => {
 /* ---------- Booking dashboard + private contact reveal ---------- */
 async function openRequestBox() {
   if (!currentSession?.user?.id) { openLogin("login"); return; }
-  openModal('<span class="eyebrow">YOUR RENTRELAY</span><h2>Request box</h2><div id="bookingDashboard">Loading your requests…</div>');
+  openModal('<span class="eyebrow">YOUR RENTRELAY</span><h2>My Request</h2><div id="bookingDashboard">Loading your requests…</div>');
   const host = $("bookingDashboard");
   const { data: requests, error } = await sb.from("booking_requests").select("*").order("created_at", { ascending: false }).limit(100);
   if (error) { host.textContent = "Could not load requests: " + error.message; return; }
@@ -533,7 +533,7 @@ async function openRequestBox() {
   host.innerHTML = requests.map(r => {
     const l = byId[r.listing_id] || {};
     const incoming = l.owner_id === currentSession.user.id;
-    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Incoming request" : "Your request"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
+    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Request received" : "Request sent"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
   }).join("");
   host.querySelectorAll("[data-accept],[data-decline]").forEach(btn => btn.onclick = async () => {
     const id = btn.dataset.accept || btn.dataset.decline, status = btn.dataset.accept ? "accepted" : "declined";
@@ -553,7 +553,7 @@ async function openRequestBox() {
     target.innerHTML = `<p>Lender: ${esc(c.owner_name)} · <a href="tel:${esc(c.owner_mobile || "")}">${esc(c.owner_mobile || "No number saved")}</a></p><p>Renter: ${esc(c.renter_name)} · <a href="tel:${esc(c.renter_mobile || "")}">${esc(c.renter_mobile || "No number saved")}</a></p>`;
   });
 }
-if ($("requestBox")) $("requestBox").onclick = openRequestBox;
+if ($("myRequest")) $("myRequest").onclick = openRequestBox;
 
 /* ---------- List an item ---------- */
 function listItem() {
