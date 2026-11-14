@@ -348,8 +348,6 @@ grant delete on public.listings to authenticated;
 revoke all on public.listings from anon;
 grant select (id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at)
   on public.listings to anon;
-)
-);
 
 -- Bound the number of active listings and uploaded photos per member.
 drop policy if exists "Members can create their own listings" on public.listings;
