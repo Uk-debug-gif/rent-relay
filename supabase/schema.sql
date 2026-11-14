@@ -10,6 +10,7 @@ create table if not exists public.listings (
   description text not null default '',
   image_url text,
   address text not null default '',
+  pickup_area text not null default '',
   created_at timestamptz not null default now()
 );
 -- Safe upgrades for projects where the listings table already exists.
@@ -17,6 +18,7 @@ alter table public.listings add column if not exists description text not null d
 alter table public.listings add column if not exists image_url text;
 alter table public.listings alter column owner_id drop not null;
 alter table public.listings add column if not exists address text not null default '';
+alter table public.listings add column if not exists pickup_area text not null default '';
 create index if not exists listings_owner_id_idx on public.listings(owner_id);
 alter table public.listings enable row level security;
 drop policy if exists "Anyone can read listings" on public.listings;
@@ -218,7 +220,8 @@ as $$
     when 'Utensils & Kitchen' then p_subcategory in ('Cookware','Flasks & bottles','Dining')
     else false end;
 $$;
-revoke all on function public.valid_listing_category(text,text) from public, anon, authenticated;
+revoke all on function public.valid_listing_category(text,text) from public, anon;
+grant execute on function public.valid_listing_category(text,text) to authenticated;
 alter table public.listings drop constraint if exists listings_category_valid;
 alter table public.listings add constraint listings_category_valid
   check (public.valid_listing_category(category, subcategory));
@@ -314,3 +317,19 @@ create policy "Renters can cancel their own pending requests" on public.booking_
 
 revoke all on function public.booking_contact(uuid) from public, anon;
 grant execute on function public.booking_contact(uuid) to authenticated;
+
+-- Keep exact/private pickup addresses out of the public Data API.
+-- New clients read/write only the general pickup_area field.
+revoke select on public.listings from anon, authenticated;
+grant select (id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at)
+  on public.listings to anon, authenticated;
+revoke insert on public.listings from anon, authenticated;
+grant insert (owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area)
+  on public.listings to authenticated;
+revoke update, delete on public.listings from anon;
+grant update (title,category,subcategory,price_per_day,condition,description,image_url,pickup_area)
+  on public.listings to authenticated;
+grant delete on public.listings to authenticated;
+revoke all on public.listings from anon;
+grant select (id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at)
+  on public.listings to anon;
