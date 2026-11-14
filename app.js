@@ -337,7 +337,8 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal()
    Mobile is contact information only; it is never verified by SMS. */
 let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null, currentSession = null, welcomeShownFor = null;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;\nconst AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
 function cleanMobile(raw) {
   const v = String(raw).trim().replace(/[\s()-]/g, "");
   if (/^[6-9]\d{9}$/.test(v)) return "+91" + v;               // 10-digit Indian number
