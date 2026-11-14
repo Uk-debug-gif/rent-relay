@@ -1,6 +1,6 @@
 # RentRelay — project setup and current status
 
-RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email magic-link signup/login, and a public student listing form.
+RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email/password signup and login with email confirmation and password reset, and a public student listing form.
 
 ## What works in the frontend
 
@@ -8,8 +8,8 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - Search item titles, categories, conditions and descriptions.
 - Filter by minimum and maximum daily price; sort by price or recent live listings.
 - View item details and calculate an estimated rental total.
-- Submit a public community listing without signing in, including a photo and pickup location; signed-in listings retain the member user ID.
-- Create an account or sign in using email magic link. Mobile number is collected as contact information but is not SMS-verified.
+- Create member listings while signed in, including a photo and general public pickup area; exact address data is not exposed through the public listings API.
+- Create an account with email and password; verify email once, then log in with password. Forgot-password flow sends a reset link. Mobile number is collected but is not SMS-verified.
 - Live student listings are loaded from Supabase when the project is connected.
 
 ## Important prototype limitations
@@ -18,7 +18,7 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - The item detail rental calculator is an **estimate only**. It does not contact an owner, create a booking, or reserve availability.
 - Online payments, deposits, refunds, booking approvals, cancellations, messaging, ratings/reviews, moderation workflows and dispute handling are not implemented.
 - Email confirmation links verify the email address only. A mobile number is not verified.
-- Anonymous listings are allowed by the current database policy. Signed-in listings are associated with the member account, but identity and item ownership are not independently verified.
+- New listings require an authenticated member account. Student identity and item ownership are not independently verified.
 - Public listing photos are served from a public Supabase Storage bucket. Do not upload sensitive or private images.
 
 ## 1. Create a Supabase project
@@ -83,5 +83,5 @@ After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to by
 - Live community listings are loaded from Supabase and are prioritised in the featured section; demo examples remain clearly labelled.
 - A signed-in member's listing stores their Auth user ID; anonymous community listings store no owner ID.
 - Signed-in members can sign out from the header.
-- The detail page calculates an estimated rental total only. Booking requests, owner contact, availability, payment, messaging and dispute handling are not live.
+- Member listings support rental requests and owner accept/decline decisions. Contact details are revealed only after acceptance. Payments, in-app messaging, availability collision calendars, ratings and dispute handling are not implemented.
 - Frontend JavaScript syntax and key UI wiring were checked after the latest changes. A real browser/device test and end-to-end signup/listing test are still required.
