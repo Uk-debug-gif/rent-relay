@@ -32,14 +32,14 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 1. Open Supabase SQL Editor.
 2. Run the complete contents of `supabase/schema.sql`.
 3. Confirm that `listings` and `profiles` tables exist.
-4. The schema enables row-level security, allows public reads and anonymous/authenticated listing inserts, and allows authenticated owners to update/delete only rows associated with their user ID. Anonymous rows have no owner account.
+4. The schema enables row-level security, restricts new listings to authenticated owners, exposes only safe listing columns and general pickup areas, and limits each member to 20 listings/photos. Owner-only update/delete rules apply.
 
-## 3. Configure email magic link
+## 3. Configure email/password authentication
 
 1. Open Authentication → Sign In / Providers → Email and enable email authentication.
-2. Keep the default Supabase Magic Link email template enabled; it should contain the confirmation URL.
+2. Keep Supabase email confirmation enabled. Signup sends one confirmation link; returning users log in with email and password. Password recovery uses the password-reset email template.
 3. For real users, configure a custom SMTP provider and appropriate rate limits.
-4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs.
+4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs for email confirmation and password recovery.
 
 ## 4. Frontend connection
 
