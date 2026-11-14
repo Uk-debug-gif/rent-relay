@@ -290,7 +290,7 @@ function openItem(id) {
       $("rentBtn").textContent = "Sending request…";
       const { error } = await sb.from("booking_requests").insert({ listing_id: it.id.replace("live-", ""), renter_id: currentSession.user.id, start_date: startValue, rental_days: n, message: $("rentMessage").value.trim() });
       if (error) { toast("Could not send request: " + error.message); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
-      m.className = "note ok"; m.textContent = "Request sent. The owner must accept it before contact details are shared. Open your Request box to track it."; $("rentBtn").textContent = "Request sent ✓";
+      m.className = "note ok"; m.textContent = "Request sent. The owner must accept it before contact details are shared. Open your My Request to track it."; $("rentBtn").textContent = "Request sent ✓";
       return;
     }
     m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent.`;
@@ -366,8 +366,8 @@ function cleanMobile(raw) {
 }
 function setAuthUI(session) {
   currentSession = session && session.user ? session : null;
-  $("login").textContent = "Sign up / Log in";
   $("login").hidden = !!currentSession;
+  if ($("signup")) $("signup").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
   if ($("requestBox")) $("requestBox").hidden = !currentSession;
 }
@@ -439,8 +439,7 @@ function openLogin(step = "signup") {
       <p>Enter your email and we’ll send you a secure sign-in link.</p>
       <label>Email<input id="liEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
       <button class="primary wide" id="liGo" type="button">Send sign-in link</button>
-      <button class="back" id="toSignup" type="button">New here? Create an account</button>`);
-    $("toSignup").onclick = () => openLogin("signup");
+      `);
     $("liGo").onclick = async () => {
       const email = $("liEmail").value.trim().toLowerCase();
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
@@ -508,7 +507,8 @@ async function showWelcome(user) {
   $("welcomeGo").onclick = () => { closeModal(); if (afterLogin) { afterLogin = false; listItem(); } };
 }
 
-$("login").onclick = () => openLogin("signup");
+$("login").onclick = () => openLogin("login");
+if ($("signup")) $("signup").onclick = () => openLogin("signup");
 $("logout").onclick = async () => {
   if (!sb || !currentSession) return;
   $("logout").disabled = true;
@@ -526,7 +526,7 @@ async function openRequestBox() {
   const host = $("bookingDashboard");
   const { data: requests, error } = await sb.from("booking_requests").select("*").order("created_at", { ascending: false }).limit(100);
   if (error) { host.textContent = "Could not load requests: " + error.message; return; }
-  if (!requests?.length) { host.innerHTML = '<p>No requests yet. Rental requests to borrow your items and requests you send to other students will appear here.</p>'; return; }
+  if (!requests?.length) { host.innerHTML = '<p>No requests available</p><button class="primary" id="emptyListItem" type="button">List an item</button>'; $("emptyListItem").onclick = listItem; return; }
   const listingIds = [...new Set(requests.map(r => r.listing_id))];
   const { data: listings } = await sb.from("listings").select("id,title,owner_id,price_per_day").in("id", listingIds);
   const byId = Object.fromEntries((listings || []).map(l => [l.id,l]));
