@@ -541,7 +541,7 @@ async function openRequestBox() {
     const { error: updateError } = await sb.from("booking_requests").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
     if (updateError) { toast("Could not update request: " + updateError.message); btn.disabled = false; return; }
     toast(status === "accepted" ? "Request accepted. Both participants can now view contact details." : "Request declined.");
-    openDashboard();
+    openRequestBox();
   });
   host.querySelectorAll("[data-contact]").forEach(btn => btn.onclick = async () => {
     btn.disabled = true;
