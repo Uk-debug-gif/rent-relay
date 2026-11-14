@@ -231,7 +231,7 @@ alter table public.listings drop constraint if exists listings_address_length;
 alter table public.listings add constraint listings_address_length check (char_length(address) <= 120);
 alter table public.listings drop constraint if exists listings_image_url_bucket;
 alter table public.listings add constraint listings_image_url_bucket check (
-  image_url is null or (owner_id is not null and image_url like 'https://tvtmhisivwctprqmbzbj.supabase.co/storage/v1/object/public/listing-images/' || owner_id::text || '/%' and image_url ~ '^https://tvtmhisivwctprqmbzbj[.]supabase[.]co/storage/v1/object/public/listing-images/[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}[.](jpg|jpeg|png|webp)
+  image_url is null or (owner_id is not null and image_url like 'https://tvtmhisivwctprqmbzbj.supabase.co/storage/v1/object/public/listing-images/' || owner_id::text || '/%' and image_url ~ '^https://tvtmhisivwctprqmbzbj[.]supabase[.]co/storage/v1/object/public/listing-images/[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}[.](jpg|jpeg|png|webp)$')
 );
 
 -- Terms fields are mandatory and validated by the auth trigger before a profile can be created.
