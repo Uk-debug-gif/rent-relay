@@ -257,7 +257,7 @@ function openItem(id) {
   $("dPlus").onclick = () => { days.value = clamp() + 1; update(); };
   days.addEventListener("input", update); days.addEventListener("change", update); $("rentStart").addEventListener("change", update);
   update();
-  $("rentBtn").onclick = () => {
+  $("rentBtn").onclick = async () => {
     const name = $("rentName") ? $("rentName").value.trim() : "";
     if (!it.live || !it.owner_id) { if (!name) { toast("Please enter your name first."); $("rentName").focus(); return; } }
     const startValue = $("rentStart").value;
