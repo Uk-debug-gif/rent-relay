@@ -1,6 +1,6 @@
 # RentRelay — project setup and current status
 
-RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email OTP signup/login, and a public student listing form.
+RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email magic-link signup/login, and a public student listing form.
 
 ## What works in the frontend
 
@@ -9,7 +9,7 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - Filter by minimum and maximum daily price; sort by price or recent live listings.
 - View item details and calculate an estimated rental total.
 - Submit a public community listing without signing in, including a photo and pickup location; signed-in listings retain the member user ID.
-- Create an account or sign in using email OTP. Mobile number is collected as contact information but is not SMS-verified.
+- Create an account or sign in using email magic link. Mobile number is collected as contact information but is not SMS-verified.
 - Live student listings are loaded from Supabase when the project is connected.
 
 ## Important prototype limitations
@@ -34,10 +34,10 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 3. Confirm that `listings` and `profiles` tables exist.
 4. The schema enables row-level security, allows public reads and anonymous/authenticated listing inserts, and allows authenticated owners to update/delete only rows associated with their user ID. Anonymous rows have no owner account.
 
-## 3. Configure email OTP
+## 3. Configure email magic link
 
 1. Open Authentication → Sign In / Providers → Email and enable email authentication.
-2. Configure email templates to include the OTP token.
+2. Keep the default Supabase Magic Link email template enabled; it should contain the confirmation URL.
 3. For real users, configure a custom SMTP provider and appropriate rate limits.
 4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs.
 
@@ -53,7 +53,7 @@ The optional Supabase Edge Function lives in `supabase/functions/notify-new-user
 
 - [x] Configure Supabase URL and public publishable key in the frontend.
 - [x] Create/update `listings`, `profiles`, policies, triggers and the `listing-images` bucket in Supabase.
-- [ ] Configure email OTP and production SMTP.
+- [ ] Configure email magic link and production SMTP.
 - [ ] Test anonymous listing submission and image upload.
 - [ ] Test signup, login, and profile creation.
 - [ ] Test category/search/price filters on desktop and mobile.
@@ -71,7 +71,7 @@ After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to by
 
 ## Terms & Conditions acceptance
 
-- New account signup requires an unticked, affirmative checkbox agreeing to `terms.html` and its Privacy Notice before an email OTP can be sent.
+- New account signup requires an unticked, affirmative checkbox agreeing to `terms.html` and its Privacy Notice before an email magic link can be sent.
 - Signup records the Terms version and acceptance timestamp in Supabase Auth user metadata; the profile trigger copies these values to `profiles`.
 - Existing accounts can still sign in without re-accepting. If the terms materially change, a proper re-consent flow should be implemented.
 - The legal page is a working draft, not a lawyer-certified compliance document. Before public/commercial launch, fill the operator's legal identity, address, customer support and grievance officer details and obtain Indian legal review.
