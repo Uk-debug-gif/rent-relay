@@ -538,3 +538,10 @@ body.modal-open{overflow:hidden}
   .hero-search button{padding:10px 12px}
   .catalog-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 }
+
+@media(max-width:560px){
+  #listTop{display:none}
+  .hero-search{display:flex;width:100%;max-width:100%;min-width:0}
+  .hero-search input{flex:1 1 auto;width:1%;min-width:0}
+  .hero-search button{flex:0 0 auto;white-space:nowrap}
+}
