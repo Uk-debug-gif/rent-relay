@@ -278,11 +278,25 @@ create unique index if not exists booking_one_pending_per_renter_item
   on public.booking_requests(listing_id,renter_id) where status='pending';
 -- Prevent overlapping accepted date ranges for the same item, including concurrent accept attempts.
 create extension if not exists btree_gist;
-create index if not exists booking_no_overlapping_accepted_dates
-  on public.booking_requests using gist (
-    listing_id with =,
-    daterange(start_date, start_date + rental_days, '[)') with &&
-  ) where status='accepted';
+drop index if exists public.booking_no_overlapping_accepted_dates;
+create or replace function public.guard_booking_overlap()
+returns trigger language plpgsql set search_path = ''
+as $
+begin
+  if new.status='accepted' then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.listing_id::text,0));
+    if exists (
+      select 1 from public.booking_requests br
+      where br.listing_id=new.listing_id and br.status='accepted' and br.id<>new.id
+        and daterange(br.start_date,br.start_date+br.rental_days,'[)')
+            && daterange(new.start_date,new.start_date+new.rental_days,'[)')
+    ) then raise exception 'These dates overlap another accepted rental'; end if;
+  end if;
+  return new;
+end $;
+drop trigger if exists booking_overlap_guard on public.booking_requests;
+create trigger booking_overlap_guard before insert or update of status,start_date,rental_days,listing_id
+on public.booking_requests for each row execute function public.guard_booking_overlap();
 
 -- Strict state machine: owner may decide pending requests; renter may cancel their own pending request.
 create or replace function public.guard_booking_status_change()
