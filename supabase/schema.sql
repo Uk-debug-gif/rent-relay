@@ -281,7 +281,7 @@ create extension if not exists btree_gist;
 drop index if exists public.booking_no_overlapping_accepted_dates;
 create or replace function public.guard_booking_overlap()
 returns trigger language plpgsql set search_path = ''
-as $
+as $body$
 begin
   if new.status='accepted' then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.listing_id::text,0));
@@ -293,7 +293,7 @@ begin
     ) then raise exception 'These dates overlap another accepted rental'; end if;
   end if;
   return new;
-end $;
+end $body$;
 drop trigger if exists booking_overlap_guard on public.booking_requests;
 create trigger booking_overlap_guard before insert or update of status,start_date,rental_days,listing_id
 on public.booking_requests for each row execute function public.guard_booking_overlap();
