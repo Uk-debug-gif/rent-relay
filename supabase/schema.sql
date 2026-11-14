@@ -242,7 +242,7 @@ begin
   if new.email_confirmed_at is null then return new; end if;
   if coalesce(new.raw_user_meta_data->>'terms_accepted','false') <> 'true'
      or new.raw_user_meta_data->>'terms_version' <> '2026-11-14'
-     or coalesce(new.raw_user_meta_data->>'terms_accepted_at','') !~ '^\\d{4}-\\d{2}-\\d{2}T'
+     or coalesce(new.raw_user_meta_data->>'terms_accepted_at','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
   then raise exception 'Terms acceptance is required'; end if;
   v_terms_at := (new.raw_user_meta_data->>'terms_accepted_at')::timestamptz;
   insert into public.profiles (id, username, full_name, mobile, email, terms_accepted, terms_version, terms_accepted_at)
