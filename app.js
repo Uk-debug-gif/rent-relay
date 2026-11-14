@@ -368,7 +368,6 @@ function setAuthUI(session) {
   currentSession = session && session.user ? session : null;
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
-  if ($("myRequest")) $("myRequest").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -553,8 +552,6 @@ async function openRequestBox() {
     target.innerHTML = `<p>Lender: ${esc(c.owner_name)} · <a href="tel:${esc(c.owner_mobile || "")}">${esc(c.owner_mobile || "No number saved")}</a></p><p>Renter: ${esc(c.renter_name)} · <a href="tel:${esc(c.renter_mobile || "")}">${esc(c.renter_mobile || "No number saved")}</a></p>`;
   });
 }
-if ($("myRequest")) $("myRequest").onclick = openRequestBox;
-
 /* ---------- List an item ---------- */
 function listItem() {
   renderListForm();
