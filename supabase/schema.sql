@@ -185,3 +185,36 @@ begin
 end $$;
 revoke all on function public.booking_contact(uuid) from public,anon;
 grant execute on function public.booking_contact(uuid) to authenticated;
+
+
+-- Listing contact display: guests see a masked number; signed-in users see the saved contact number.
+create or replace function public.listing_contact(p_listing_id uuid)
+returns table(owner_name text, mobile_display text, is_masked boolean)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_owner uuid;
+begin
+  select l.owner_id into v_owner
+  from public.listings l
+  where l.id = p_listing_id;
+  if v_owner is null then
+    return;
+  end if;
+  return query
+  select
+    coalesce(p.full_name, 'Student'),
+    case
+      when auth.uid() is null then
+        case when p.mobile is null or p.mobile = '' then 'Not provided'
+        else '••••••' || right(regexp_replace(p.mobile, '\\D', '', 'g'), 4) end
+      else coalesce(p.mobile, 'Not provided')
+    end,
+    auth.uid() is null
+  from public.profiles p
+  where p.id = v_owner;
+end;
+$$;
+revoke all on function public.listing_contact(uuid) from public;
+grant execute on function public.listing_contact(uuid) to anon, authenticated;
