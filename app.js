@@ -222,6 +222,7 @@ function openItem(id) {
         <div class="chips"><span class="chip">✓ ${esc(it.cond)}</span><span class="chip">⌖ ${esc(it.address || "Campus pickup")}</span><span class="chip">📅 From 1 day</span></div>
         <div class="big-price">${money(it.price)}<small> / day</small></div>
         <p class="desc">${esc(it.desc)}</p>
+        <div class="contact-panel" id="listingContact"><b>Contact lender</b><p>Loading contact details…</p></div>
         <div class="rent-box">
           <h2>${it.live && it.owner_id ? "Request this rental" : "Estimate your rental"}</h2>
           ${it.live && it.owner_id ? `<label>Message to the owner (optional)<textarea id="rentMessage" rows="2" maxlength="500" placeholder="Hi, is this item available for these dates?"></textarea></label>` : `<label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>`}
@@ -232,7 +233,7 @@ function openItem(id) {
             </label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
-          <button class="primary wide" id="rentBtn" type="button">${it.live && it.owner_id ? "Send rental request" : "Calculate rental total"}</button>
+          ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : `<button class="primary wide" id="signInRequest" type="button">Sign in to request this item</button>`) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
           <div class="note" id="rentMsg">${it.live && it.owner_id ? "Your request goes to the item owner. The rental is not confirmed until they accept." : "This is a price estimate only. It does not send a booking request or reserve the item."}</div>
         </div>
         <ul class="checklist">
@@ -244,6 +245,25 @@ function openItem(id) {
     </div>
     ${similar.length ? `<section class="similar"><h2>More in ${esc(cat.name)}</h2><div class="products">${similar.map(card).join("")}</div></section>` : ""}`;
 
+  const contactPanel = $("listingContact");
+  if (it.live && it.owner_id && sb) {
+    sb.rpc("listing_contact", { p_listing_id: it.id.replace("live-", "") }).then(({ data, error }) => {
+      if (!contactPanel || !contactPanel.isConnected) return;
+      if (error || !data?.length) { contactPanel.innerHTML = "<b>Contact lender</b><p>Contact details are unavailable right now.</p>"; return; }
+      const c = data[0];
+      const phone = String(c.mobile_display || "Not provided");
+      const phoneHTML = c.is_masked || phone === "Not provided"
+        ? esc(phone)
+        : `<a href="tel:${esc(phone)}">${esc(phone)}</a>`;
+      contactPanel.innerHTML = `<b>Contact lender</b><p>${esc(c.owner_name || "Student")} · ${phoneHTML}</p>${c.is_masked ? "<small>Sign in to view the full contact number.</small>" : ""}`;
+    });
+  } else if (it.live && it.owner_id) {
+    contactPanel.innerHTML = "<b>Contact lender</b><p>Sign in to view contact details.</p>";
+  } else if (contactPanel) {
+    contactPanel.hidden = true;
+  }
+
+  if ($("signInRequest")) $("signInRequest").onclick = () => openLogin("login");
   const days = $("rentDays");
   const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
   const update = () => {
@@ -259,7 +279,7 @@ function openItem(id) {
   update();
   $("rentBtn").onclick = async () => {
     const name = $("rentName") ? $("rentName").value.trim() : "";
-    if (!it.live || !it.owner_id) { if (!name) { toast("Please enter your name first."); $("rentName").focus(); return; } }
+    if ((!it.live || !it.owner_id) && $("rentName") && !name) { toast("Please enter your name first."); $("rentName").focus(); return; }
     const startValue = $("rentStart").value;
     if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
@@ -271,7 +291,7 @@ function openItem(id) {
       $("rentBtn").textContent = "Sending request…";
       const { error } = await sb.from("booking_requests").insert({ listing_id: it.id.replace("live-", ""), renter_id: currentSession.user.id, start_date: startValue, rental_days: n, message: $("rentMessage").value.trim() });
       if (error) { toast("Could not send request: " + error.message); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
-      m.className = "note ok"; m.textContent = "Request sent. The owner must accept it before contact details are shared. Open My requests to track it."; $("rentBtn").textContent = "Request sent ✓";
+      m.className = "note ok"; m.textContent = "Request sent. The owner must accept it before contact details are shared. Open your Request box to track it."; $("rentBtn").textContent = "Request sent ✓";
       return;
     }
     m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent.`;
@@ -350,7 +370,7 @@ function setAuthUI(session) {
   $("login").textContent = "Sign up / Log in";
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
-  if ($("dashboard")) $("dashboard").hidden = !currentSession;
+  if ($("requestBox")) $("requestBox").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -501,13 +521,13 @@ $("logout").onclick = async () => {
 
 
 /* ---------- Booking dashboard + private contact reveal ---------- */
-async function openDashboard() {
+async function openRequestBox() {
   if (!currentSession?.user?.id) { openLogin("login"); return; }
-  openModal('<span class="eyebrow">YOUR RENTRELAY</span><h2>My requests</h2><div id="bookingDashboard">Loading your requests…</div>');
+  openModal('<span class="eyebrow">YOUR RENTRELAY</span><h2>Request box</h2><div id="bookingDashboard">Loading your requests…</div>');
   const host = $("bookingDashboard");
   const { data: requests, error } = await sb.from("booking_requests").select("*").order("created_at", { ascending: false }).limit(100);
   if (error) { host.textContent = "Could not load requests: " + error.message; return; }
-  if (!requests?.length) { host.innerHTML = '<p>No booking requests yet. When you request a member listing or receive a request, it will appear here.</p>'; return; }
+  if (!requests?.length) { host.innerHTML = '<p>No requests yet. Rental requests to borrow your items and requests you send to other students will appear here.</p>'; return; }
   const listingIds = [...new Set(requests.map(r => r.listing_id))];
   const { data: listings } = await sb.from("listings").select("id,title,owner_id,price_per_day").in("id", listingIds);
   const byId = Object.fromEntries((listings || []).map(l => [l.id,l]));
@@ -534,7 +554,7 @@ async function openDashboard() {
     target.innerHTML = `<p>Lender: ${esc(c.owner_name)} · <a href="tel:${esc(c.owner_mobile || "")}">${esc(c.owner_mobile || "No number saved")}</a></p><p>Renter: ${esc(c.renter_name)} · <a href="tel:${esc(c.renter_mobile || "")}">${esc(c.renter_mobile || "No number saved")}</a></p>`;
   });
 }
-if ($("dashboard")) $("dashboard").onclick = openDashboard;
+if ($("requestBox")) $("requestBox").onclick = openRequestBox;
 
 /* ---------- List an item ---------- */
 function listItem() {
