@@ -376,9 +376,14 @@ function needSupabase() {
 }
 function friendlyAuthError(err) {
   const m = String(err && err.message || "Something went wrong");
+  const code = String(err && err.code || "");
+  if (/email_address_not_authorized/i.test(code + " " + m)) return "Supabase's test email service cannot send to this address. RentRelay needs a configured email provider before public signup.";
+  if (/email rate limit exceeded/i.test(m)) return "RentRelay has reached Supabase's hourly email limit. No new email was sent. Please try later; repeated clicks will not fix it.";
+  const wait = m.match(/only request this after (\\d+) seconds/i);
+  if (wait) return `Please wait ${wait[1]} seconds before requesting another email.`;
+  if (/request rate limit reached/i.test(m)) return "Too many login or signup attempts from this network. Please wait a few minutes and try once.";
   if (/signups? not allowed|not found/i.test(m)) return "No account found with this email. Please sign up first.";
-  if (/rate limit|too many|security purposes/i.test(m)) return "Too many tries. Please wait a minute and try again.";
-  if (/expired|invalid/i.test(m)) return "That code is wrong or has expired. Check the latest email or request a new code.";
+  if (/expired|invalid/i.test(m)) return "That confirmation link is invalid or expired. Request a fresh email link.";
   return m;
 }
 
@@ -394,15 +399,50 @@ function openCheckEmail(mode) {
     <button class="primary wide" id="resendLink" type="button">Resend email</button>
     <button class="back" id="changeEmail" type="button">← Use a different email</button>`);
   $("changeEmail").onclick = () => openLogin(mode);
-  $("resendLink").onclick = async () => {
-    if (needSupabase()) return;
-    const btn = $("resendLink"); btn.disabled = true; btn.textContent = "Sending…";
+  const resendBtn = $("resendLink");
+  let resendSeconds = 60, resendInterval = null, resendBusy = false;
+  const startResendCooldown = () => {
+    clearInterval(resendInterval);
+    resendSeconds = 60;
+    resendBtn.disabled = true;
+    resendBtn.textContent = `Resend email in ${resendSeconds}s`;
+    resendInterval = setInterval(() => {
+      resendSeconds -= 1;
+      if (!resendBtn.isConnected) { clearInterval(resendInterval); return; }
+      if (resendSeconds <= 0) {
+        clearInterval(resendInterval);
+        resendBtn.disabled = false;
+        resendBtn.textContent = "Resend email";
+      } else {
+        resendBtn.textContent = `Resend email in ${resendSeconds}s`;
+      }
+    }, 1000);
+  };
+  startResendCooldown();
+  resendBtn.onclick = async () => {
+    if (resendBusy || needSupabase()) return;
+    resendBusy = true; resendBtn.disabled = true; resendBtn.textContent = "Sending…";
     const options = { shouldCreateUser: mode === "signup", emailRedirectTo: AUTH_REDIRECT_URL };
     if (mode === "signup") options.data = { mobile: signupMobile, terms_accepted: true, terms_version: TERMS_VERSION };
-    const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options });
-    if (error) { toast(friendlyAuthError(error)); btn.disabled = false; btn.textContent = "Resend email"; return; }
-    toast("A new email link has been sent. Use the latest email.");
-    btn.disabled = false; btn.textContent = "Resend email";
+    try {
+      const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options });
+      if (error) {
+        toast(friendlyAuthError(error));
+        resendBusy = false;
+        if (/email rate limit exceeded/i.test(String(error.message || ""))) {
+          resendBtn.textContent = "Email limit reached";
+          return;
+        }
+        resendBtn.disabled = false; resendBtn.textContent = "Resend email";
+        return;
+      }
+      toast("A new confirmation link has been sent. Use the latest email.");
+      resendBusy = false;
+      startResendCooldown();
+    } catch (error) {
+      toast("Could not contact the email service. Please try again later.");
+      resendBusy = false; resendBtn.disabled = false; resendBtn.textContent = "Resend email";
+    }
   };
 }
 function openLogin(step = "signup") {
@@ -428,9 +468,14 @@ function openLogin(step = "signup") {
       if (needSupabase()) return;
       $("suGo").disabled = true; $("suGo").textContent = "Sending email…";
       const acceptedAt = new Date().toISOString();
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: AUTH_REDIRECT_URL, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
-      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Accept & send confirmation link"; return; }
-      signupEmail = email; signupMobile = mobile; authFlow = "signup"; openCheckEmail("signup");
+      try {
+        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: AUTH_REDIRECT_URL, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
+        if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Accept & send confirmation link"; return; }
+        signupEmail = email; signupMobile = mobile; authFlow = "signup"; openCheckEmail("signup");
+      } catch (error) {
+        toast("Could not contact the email service. Please try again later.");
+        $("suGo").disabled = false; $("suGo").textContent = "Accept & send confirmation link";
+      }
     };
   } else if (step === "login") {
     openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in</h2>
@@ -445,9 +490,14 @@ function openLogin(step = "signup") {
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
       if (needSupabase()) return;
       $("liGo").disabled = true; $("liGo").textContent = "Sending email…";
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: AUTH_REDIRECT_URL } });
-      if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send sign-in link"; return; }
-      signupEmail = email; authFlow = "login"; openCheckEmail("login");
+      try {
+        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: AUTH_REDIRECT_URL } });
+        if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send sign-in link"; return; }
+        signupEmail = email; authFlow = "login"; openCheckEmail("login");
+      } catch (error) {
+        toast("Could not contact the email service. Please try again later.");
+        $("liGo").disabled = false; $("liGo").textContent = "Send sign-in link";
+      }
     };
   } else if (step === "name") {
     openModal(`<span class="eyebrow">ONE LAST STEP</span><h2>Your full name</h2>
