@@ -17,16 +17,17 @@ alter table public.listings add column if not exists description text not null d
 alter table public.listings add column if not exists image_url text;
 alter table public.listings alter column owner_id drop not null;
 alter table public.listings add column if not exists address text not null default '';
+create index if not exists listings_owner_id_idx on public.listings(owner_id);
 alter table public.listings enable row level security;
 drop policy if exists "Anyone can read listings" on public.listings;
-create policy "Anyone can read listings" on public.listings for select using (true);
+create policy "Anyone can read listings" on public.listings for select to anon, authenticated using (true);
 drop policy if exists "Users can create their own listings" on public.listings;
 drop policy if exists "Anyone can create listings without an account" on public.listings;
-create policy "Anyone can create listings without an account" on public.listings for insert to anon, authenticated with check (owner_id is null or owner_id = auth.uid());
+create policy "Anyone can create listings without an account" on public.listings for insert to anon, authenticated with check (owner_id is null or owner_id = (select auth.uid()));
 drop policy if exists "Owners can update their own listings" on public.listings;
-create policy "Owners can update their own listings" on public.listings for update to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+create policy "Owners can update their own listings" on public.listings for update to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
 drop policy if exists "Owners can delete their own listings" on public.listings;
-create policy "Owners can delete their own listings" on public.listings for delete to authenticated using (auth.uid() = owner_id);
+create policy "Owners can delete their own listings" on public.listings for delete to authenticated using ((select auth.uid()) = owner_id);
 
 -- ================= Profiles + automatic random username =================
 -- A profile row is created the moment a user's EMAIL IS VERIFIED (email OTP),
@@ -44,7 +45,11 @@ alter table public.profiles add column if not exists terms_version text;
 alter table public.profiles add column if not exists terms_accepted_at timestamptz;
 alter table public.profiles enable row level security;
 drop policy if exists "Users can read their own profile" on public.profiles;
-create policy "Users can read their own profile" on public.profiles for select to authenticated using (auth.uid() = id);
+create policy "Users can read their own profile" on public.profiles for select to authenticated using ((select auth.uid()) = id);
+grant select, insert on public.listings to anon;
+grant select, insert, update, delete on public.listings to authenticated;
+grant select on public.profiles to authenticated;
+
 -- No insert/update/delete policies on purpose: only the trigger below writes profiles,
 -- so nobody can pick or change a username from the browser.
 
@@ -91,6 +96,8 @@ end $$;
 
 revoke execute on function public.generate_username() from public, anon, authenticated;
 revoke execute on function public.handle_verified_user() from public, anon, authenticated;
+-- This event-trigger helper is not a client-facing RPC; keep it inaccessible to API roles.
+revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
