@@ -13,7 +13,7 @@
 <meta property="og:title" content="RentRelay — Campus rentals, made simple">
 <meta property="og:description" content="Find useful things shared by students around your campus. Rent for the days you need.">
 <meta name="robots" content="index,follow">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Skip to content</a>
@@ -29,6 +29,7 @@
       <a href="#trust">Trust &amp; safety</a>
     </nav>
     <div class="header-actions">
+      <button class="secondary" id="myRequests" type="button" hidden>My Requests</button>
       <button class="secondary" id="listTop" type="button">List an item</button>
       <button class="primary" id="login" type="button">Log in / Sign up</button>
       <button class="secondary" id="logout" type="button" hidden>Sign out</button>
@@ -53,7 +54,7 @@
           <a class="secondary" href="#explore">Browse categories ↓</a>
           <button class="secondary" id="listHero" type="button">List an item</button>
         </div>
-        <small class="hero-note">Community listings · Clear daily prices · No online booking yet</small>
+        <small class="hero-note">Community listings · Rental requests · Owner approval before contact sharing</small>
       </div>
       <div class="hero-art">
         <div class="hero-circle"></div>
@@ -88,7 +89,7 @@
         <div class="steps">
           <article><b>01</b><div>⌕</div><h3>Explore items</h3><p>Choose a category and subcategory to find what you need.</p></article>
           <article><b>02</b><div>₹</div><h3>Estimate the cost</h3><p>Choose your dates and see an estimated total before making plans.</p></article>
-          <article><b>03</b><div>✓</div><h3>Plan carefully</h3><p>Booking and owner contact are not built in yet. Do not treat an estimate as a confirmed rental.</p></article>
+          <article><b>03</b><div>✓</div><h3>Plan carefully</h3><p>Send a rental request. The owner must accept before contact details are shared.</p></article>
         </div>
       </div>
     </section>
@@ -169,7 +170,7 @@
   <div class="modal"><button class="close" id="close" type="button" aria-label="Close">×</button><div id="modalBody"></div></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=25" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0"></script>
+<script src="app.js?v=26" defer></script>
 </body>
 </html>
