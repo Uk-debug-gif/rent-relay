@@ -17,7 +17,7 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - Catalogue entries included in the source are **demo/sample items**, not confirmed real offers.
 - The item detail rental calculator is an **estimate only**. It does not contact an owner, create a booking, or reserve availability.
 - Online payments, deposits, refunds, booking approvals, cancellations, messaging, ratings/reviews, moderation workflows and dispute handling are not implemented.
-- Email OTP verifies the email address only. A mobile number is not verified.
+- Email confirmation links verify the email address only. A mobile number is not verified.
 - Anonymous listings are allowed by the current database policy. Signed-in listings are associated with the member account, but identity and item ownership are not independently verified.
 - Public listing photos are served from a public Supabase Storage bucket. Do not upload sensitive or private images.
 
@@ -53,7 +53,7 @@ The optional Supabase Edge Function lives in `supabase/functions/notify-new-user
 
 - [x] Configure Supabase URL and public publishable key in the frontend.
 - [x] Create/update `listings`, `profiles`, policies, triggers and the `listing-images` bucket in Supabase.
-- [ ] Configure email magic link and production SMTP.
+- [ ] Configure the production Site URL and allowed redirect URL for the magic link.
 - [ ] Test anonymous listing submission and image upload.
 - [ ] Test signup, login, and profile creation.
 - [ ] Test category/search/price filters on desktop and mobile.
