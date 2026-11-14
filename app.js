@@ -251,6 +251,29 @@ function openItem(id) {
     </div>
     ${similar.length ? `<section class="similar"><h2>More in ${esc(cat.name)}</h2><div class="products">${similar.map(card).join("")}</div></section>` : ""}`;
 
+  if (it.live && it.owner_id && currentSession?.user?.id === it.owner_id) {
+    const actions = document.createElement("div");
+    actions.className = "owner-actions";
+    actions.innerHTML = '<button class="secondary" id="deleteMyListing" type="button">Delete my listing</button>';
+    $("detailBody").querySelector(".detail-info").append(actions);
+    $("deleteMyListing").onclick = async () => {
+      if (!window.confirm("Delete this listing? This cannot be undone.")) return;
+      const btn = $("deleteMyListing"); btn.disabled = true; btn.textContent = "Deleting…";
+      const { error } = await sb.from("listings").delete().eq("id", it.id.replace("live-", ""));
+      if (error) { toast("Could not delete listing: " + error.message); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
+      if (it.image_url) {
+        const marker = "/listing-images/";
+        const pos = it.image_url.indexOf(marker);
+        if (pos >= 0) {
+          const path = decodeURIComponent(it.image_url.slice(pos + marker.length));
+          const { error: photoError } = await sb.storage.from("listing-images").remove([path]);
+          if (photoError) toast("Listing deleted, but its photo could not be removed. Contact support.");
+        }
+      }
+      toast("Your listing was deleted."); await loadLive(); location.hash = "#/c/" + it.cat;
+    };
+  }
+
   const contactPanel = $("listingContact");
   if (it.live && it.owner_id) {
     contactPanel.innerHTML = "<b>Contact lender</b><p>Contact details are shared only with the renter after the owner accepts a request.</p>";
