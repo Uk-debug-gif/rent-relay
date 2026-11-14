@@ -333,9 +333,9 @@ $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) clo
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- Sign up / log in (Supabase email OTP) ----------
-   Sign up: mobile number → email → email OTP → full legal name → account complete.
+   Sign up: mobile number → email → email confirmation link → account complete.
    Mobile is contact information only; it is never verified by SMS. */
-let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null, currentSession = null;
+let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null, currentSession = null, welcomeShownFor = null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 function cleanMobile(raw) {
@@ -364,16 +364,39 @@ function friendlyAuthError(err) {
   return m;
 }
 
+
+function openCheckEmail(mode) {
+  const heading = mode === "signup" ? "Confirm your email" : "Check your email";
+  const message = mode === "signup"
+    ? "We sent a confirmation link to your email. Open it to finish creating your RentRelay account."
+    : "We sent a secure sign-in link to your email. Open it to log in to RentRelay.";
+  openModal(`<span class="eyebrow">EMAIL SENT</span><h2>${heading}</h2>
+    <p>${message}</p><p><b>${esc(signupEmail)}</b></p>
+    <p class="note">Check your inbox and spam folder. The link can only be used once.</p>
+    <button class="primary wide" id="resendLink" type="button">Resend email</button>
+    <button class="back" id="changeEmail" type="button">← Use a different email</button>`);
+  $("changeEmail").onclick = () => openLogin(mode);
+  $("resendLink").onclick = async () => {
+    if (needSupabase()) return;
+    const btn = $("resendLink"); btn.disabled = true; btn.textContent = "Sending…";
+    const options = { shouldCreateUser: mode === "signup", emailRedirectTo: AUTH_REDIRECT_URL };
+    if (mode === "signup") options.data = { mobile: signupMobile, terms_accepted: true, terms_version: TERMS_VERSION };
+    const { error } = await sb.auth.signInWithOtp({ email: signupEmail, options });
+    if (error) { toast(friendlyAuthError(error)); btn.disabled = false; btn.textContent = "Resend email"; return; }
+    toast("A new email link has been sent. Use the latest email.");
+    btn.disabled = false; btn.textContent = "Resend email";
+  };
+}
 function openLogin(step = "signup") {
   if (step === "signup") {
     openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Sign up to RentRelay</h2>
-      <p>Enter your mobile number and email. We’ll send a verification code to your email.</p>
+      <p>Enter your mobile number and email. We’ll send a confirmation link to your email.</p>
       <label>Name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
       <label>Email address<input id="suEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
       <label class="terms-consent"><input id="suTerms" type="checkbox"><span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a> and <a href="terms.html#privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.</span></label>
       <p class="terms-required" id="termsRequired" role="alert">You must accept the Terms &amp; Conditions and Privacy Notice to create an account.</p>
-      <button class="primary wide" id="suGo" type="button">Accept &amp; send OTP</button>
+      <button class="primary wide" id="suGo" type="button">Accept &amp; send confirmation link</button>
       <button class="back" id="toLogin" type="button">Already have an account? Sign in</button>`);
     $("toLogin").onclick = () => openLogin("login");
     $("suGo").onclick = async () => {
@@ -385,27 +408,27 @@ function openLogin(step = "signup") {
       if (!mobile) { toast("Enter a valid mobile number (10 digits, or with country code like +91…)."); return; }
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
       if (needSupabase()) return;
-      $("suGo").disabled = true; $("suGo").textContent = "Sending code…";
+      $("suGo").disabled = true; $("suGo").textContent = "Sending email…";
       const acceptedAt = new Date().toISOString();
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: AUTH_REDIRECT_URL, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
       if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Send OTP"; return; }
-      signupEmail = email; signupMobile = mobile; authFlow = "signup"; openLogin("otp");
+      signupEmail = email; signupMobile = mobile; authFlow = "signup"; openCheckEmail("signup");
     };
   } else if (step === "login") {
     openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in</h2>
-      <p>Enter your email and we’ll send you a code.</p>
+      <p>Enter your email and we’ll send you a secure sign-in link.</p>
       <label>Email<input id="liEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
-      <button class="primary wide" id="liGo" type="button">Send code</button>
+      <button class="primary wide" id="liGo" type="button">Send sign-in link</button>
       <button class="back" id="toSignup" type="button">New here? Create an account</button>`);
     $("toSignup").onclick = () => openLogin("signup");
     $("liGo").onclick = async () => {
       const email = $("liEmail").value.trim().toLowerCase();
       if (!EMAIL_RE.test(email)) { toast("Enter a valid email address."); return; }
       if (needSupabase()) return;
-      $("liGo").disabled = true; $("liGo").textContent = "Sending code…";
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+      $("liGo").disabled = true; $("liGo").textContent = "Sending email…";
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: AUTH_REDIRECT_URL } });
       if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send code"; return; }
-      signupEmail = email; authFlow = "login"; openLogin("otp");
+      signupEmail = email; authFlow = "login"; openCheckEmail("login");
     };
   } else if (step === "name") {
     openModal(`<span class="eyebrow">ONE LAST STEP</span><h2>Your full name</h2>
@@ -591,6 +614,12 @@ renderHome();
 route();
 if (sb) {
   sb.auth.getSession().then(({ data }) => setAuthUI(data.session));
-  sb.auth.onAuthStateChange((_e, s) => setAuthUI(s));
+  sb.auth.onAuthStateChange((event, session) => {
+    setAuthUI(session);
+    if (event === "SIGNED_IN" && session?.user && welcomeShownFor !== session.user.id) {
+      welcomeShownFor = session.user.id;
+      showWelcome(session.user);
+    }
+  });
   loadLive();
 }
