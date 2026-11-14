@@ -638,6 +638,7 @@ if (sb) {
   sb.auth.getSession().then(({ data }) => setAuthUI(data.session));
   sb.auth.onAuthStateChange((event, session) => {
     setAuthUI(session);
+    if (event === "PASSWORD_RECOVERY") openSetNewPassword();
     if (event === "SIGNED_IN" && session?.user && welcomeShownFor !== session.user.id) {
       welcomeShownFor = session.user.id;
       showWelcome(session.user);
