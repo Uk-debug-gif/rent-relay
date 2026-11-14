@@ -1,6 +1,6 @@
 # RentRelay — project setup and current status
 
-RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email magic-link signup/login, and a public student listing form.
+RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email/password signup and login with email confirmation and password reset, and a public student listing form.
 
 ## What works in the frontend
 
@@ -8,8 +8,8 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - Search item titles, categories, conditions and descriptions.
 - Filter by minimum and maximum daily price; sort by price or recent live listings.
 - View item details and calculate an estimated rental total.
-- Submit a public community listing without signing in, including a photo and pickup location; signed-in listings retain the member user ID.
-- Create an account or sign in using email magic link. Mobile number is collected as contact information but is not SMS-verified.
+- Create member listings while signed in, including a photo and general public pickup area; exact address data is not exposed through the public listings API.
+- Create an account with email and password; verify email once, then log in with password. Forgot-password flow sends a reset link. Mobile number is collected but is not SMS-verified.
 - Live student listings are loaded from Supabase when the project is connected.
 
 ## Important prototype limitations
@@ -18,7 +18,7 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 - The item detail rental calculator is an **estimate only**. It does not contact an owner, create a booking, or reserve availability.
 - Online payments, deposits, refunds, booking approvals, cancellations, messaging, ratings/reviews, moderation workflows and dispute handling are not implemented.
 - Email confirmation links verify the email address only. A mobile number is not verified.
-- Anonymous listings are allowed by the current database policy. Signed-in listings are associated with the member account, but identity and item ownership are not independently verified.
+- New listings require an authenticated member account. Student identity and item ownership are not independently verified.
 - Public listing photos are served from a public Supabase Storage bucket. Do not upload sensitive or private images.
 
 ## 1. Create a Supabase project
@@ -32,14 +32,14 @@ RentRelay is a campus peer-to-peer rental marketplace prototype. It currently pr
 1. Open Supabase SQL Editor.
 2. Run the complete contents of `supabase/schema.sql`.
 3. Confirm that `listings` and `profiles` tables exist.
-4. The schema enables row-level security, allows public reads and anonymous/authenticated listing inserts, and allows authenticated owners to update/delete only rows associated with their user ID. Anonymous rows have no owner account.
+4. The schema enables row-level security, restricts new listings to authenticated owners, exposes only safe listing columns and general pickup areas, and limits each member to 20 listings/photos. Owner-only update/delete rules apply.
 
-## 3. Configure email magic link
+## 3. Configure email/password authentication
 
 1. Open Authentication → Sign In / Providers → Email and enable email authentication.
-2. Keep the default Supabase Magic Link email template enabled; it should contain the confirmation URL.
+2. Keep Supabase email confirmation enabled. Signup sends one confirmation link; returning users log in with email and password. Password recovery uses the password-reset email template.
 3. For real users, configure a custom SMTP provider and appropriate rate limits.
-4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs.
+4. Add the GitHub Pages URL to Authentication → URL Configuration / Redirect URLs for email confirmation and password recovery.
 
 ## 4. Frontend connection
 
@@ -53,11 +53,11 @@ The optional Supabase Edge Function lives in `supabase/functions/notify-new-user
 
 - [x] Configure Supabase URL and public publishable key in the frontend.
 - [x] Create/update `listings`, `profiles`, policies, triggers and the `listing-images` bucket in Supabase.
-- [ ] Configure the production Site URL and allowed redirect URL for the magic link.
-- [ ] Test anonymous listing submission and image upload.
+- [ ] Configure the production Site URL and allowed redirect URL for confirmation and password reset.
+- [ ] Test signed-in listing submission and owner-only photo deletion.
 - [ ] Test signup, login, and profile creation.
 - [ ] Test category/search/price filters on desktop and mobile.
-- [ ] Add a real booking-request flow with owner approval and availability.
+- [ ] Test booking requests, owner decisions, renter cancellation and overlapping-date rejection.
 - [ ] Add verified ownership/contact controls, reporting and moderation before opening to a wider campus.
 - [ ] Add payment, refund and dispute processes only after the rental workflow and policies are defined.
 - [ ] Run browser, accessibility, security and performance testing on real devices.
@@ -83,5 +83,5 @@ After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to by
 - Live community listings are loaded from Supabase and are prioritised in the featured section; demo examples remain clearly labelled.
 - A signed-in member's listing stores their Auth user ID; anonymous community listings store no owner ID.
 - Signed-in members can sign out from the header.
-- The detail page calculates an estimated rental total only. Booking requests, owner contact, availability, payment, messaging and dispute handling are not live.
+- Member listings support rental requests and owner accept/decline decisions. Contact details are revealed only after acceptance. Payments, in-app messaging, availability collision calendars, ratings and dispute handling are not implemented.
 - Frontend JavaScript syntax and key UI wiring were checked after the latest changes. A real browser/device test and end-to-end signup/listing test are still required.

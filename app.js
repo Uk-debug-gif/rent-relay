@@ -102,19 +102,24 @@ const catOf = it => catById(it.cat);
 const money = n => "₹" + Number(n).toLocaleString("en-IN");
 let soft = false; // soft refresh = don't reset scroll / inputs / modal
 
+let toastTimer = null;
 function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
   const t = document.createElement("div");
   t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
-  document.body.append(t);
-  setTimeout(() => t.remove(), 3200);
+  document.body.append(t); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), 3200);
 }
+let modalPreviousFocus = null;
 function openModal(html) {
+  modalPreviousFocus = document.activeElement;
   $("modalBody").innerHTML = html;
   $("overlay").classList.remove("hidden");
+  document.body.classList.add("modal-open");
   const f = $("modalBody").querySelector("input,select");
   if (f) f.focus();
 }
-function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").innerHTML = ""; }
+function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").innerHTML = ""; document.body.classList.remove("modal-open"); if (modalPreviousFocus?.focus) modalPreviousFocus.focus(); }
 
 function card(it) {
   const c = catOf(it);
@@ -188,7 +193,8 @@ function renderGrid() {
   const maxPrice = Number($("maxPrice").value || Infinity);
   if (q) list = list.filter(i => (i.title + " " + i.sub + " " + catOf(i).name + " " + i.desc + " " + i.cond + " " + (i.address || "")).toLowerCase().includes(q));
   list = list.filter(i => i.price >= minPrice && i.price <= maxPrice);
-  if (sort === "low") list.sort((a, b) => a.price - b.price);
+  if (sort === "recommended") list.sort((a, b) => Number(!!b.live) - Number(!!a.live) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  else if (sort === "low") list.sort((a, b) => a.price - b.price);
   else if (sort === "high") list.sort((a, b) => b.price - a.price);
   else if (sort === "newest") list.sort((a, b) => Number(!!b.live) - Number(!!a.live) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
   const liveCount = list.filter(i => i.live).length;
@@ -233,7 +239,7 @@ function openItem(id) {
             </label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
-          ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : ``) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
+          ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : `<button class="primary wide" id="rentSignIn" type="button">Sign in to request this item</button>`) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
           <div class="note" id="rentMsg">${it.live && it.owner_id ? "Your request goes to the item owner. The rental is not confirmed until they accept." : "This is a price estimate only. It does not send a booking request or reserve the item."}</div>
         </div>
         <ul class="checklist">
@@ -245,23 +251,36 @@ function openItem(id) {
     </div>
     ${similar.length ? `<section class="similar"><h2>More in ${esc(cat.name)}</h2><div class="products">${similar.map(card).join("")}</div></section>` : ""}`;
 
-  const contactPanel = $("listingContact");
-  if (it.live && it.owner_id && sb) {
-    sb.rpc("listing_contact", { p_listing_id: it.id.replace("live-", "") }).then(({ data, error }) => {
-      if (!contactPanel || !contactPanel.isConnected) return;
-      if (error || !data?.length) { contactPanel.innerHTML = "<b>Contact lender</b><p>Contact details are unavailable right now.</p>"; return; }
-      const c = data[0];
-      const phone = String(c.mobile_display || "Not provided");
-      const phoneHTML = c.is_masked || phone === "Not provided"
-        ? esc(phone)
-        : `<a href="tel:${esc(phone)}">${esc(phone)}</a>`;
-      contactPanel.innerHTML = `<b>Contact lender</b><p>${esc(c.owner_name || "Student")} · ${phoneHTML}</p>${c.is_masked ? "<small>Sign in to view the full contact number.</small>" : ""}`;
-    });
-  } else if (it.live && it.owner_id) {
-    contactPanel.innerHTML = "<b>Contact lender</b><p>Sign in to view contact details.</p>";
-  } else if (contactPanel) {
-    contactPanel.hidden = true;
+  if (it.live && it.owner_id && currentSession?.user?.id === it.owner_id) {
+    const actions = document.createElement("div");
+    actions.className = "owner-actions";
+    actions.innerHTML = '<button class="secondary" id="deleteMyListing" type="button">Delete my listing</button>';
+    $("detailBody").querySelector(".detail-info").append(actions);
+    $("deleteMyListing").onclick = async () => {
+      if (!window.confirm("Delete this listing? This cannot be undone.")) return;
+      const btn = $("deleteMyListing"); btn.disabled = true; btn.textContent = "Deleting…";
+      const { error } = await sb.from("listings").delete().eq("id", it.id.replace("live-", ""));
+      if (error) { toast("Could not delete listing: " + error.message); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
+      if (it.image_url) {
+        const marker = "/listing-images/";
+        const pos = it.image_url.indexOf(marker);
+        if (pos >= 0) {
+          const path = decodeURIComponent(it.image_url.slice(pos + marker.length));
+          const { error: photoError } = await sb.storage.from("listing-images").remove([path]);
+          if (photoError) toast("Listing deleted, but its photo could not be removed. Contact support.");
+        }
+      }
+      toast("Your listing was deleted."); await loadLive(); location.hash = "#/c/" + it.cat;
+    };
   }
+
+  const contactPanel = $("listingContact");
+  if (it.live && it.owner_id) {
+    contactPanel.innerHTML = "<b>Contact lender</b><p>Contact details are shared only with the renter after the owner accepts a request.</p>";
+  } else if (it.live) { contactPanel.innerHTML = "<b>Community listing</b><p>This older listing has no linked owner account and cannot receive booking requests.</p>"; } else if (contactPanel) { contactPanel.hidden = true; }
+
+  const signInRequest = $("rentSignIn");
+  if (signInRequest) signInRequest.onclick = () => { afterLogin = true; openLogin("login"); };
 
   const days = $("rentDays");
   const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
@@ -366,6 +385,7 @@ function setAuthUI(session) {
   currentSession = session && session.user ? session : null;
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
+  if ($("myRequests")) $("myRequests").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -513,6 +533,7 @@ async function showWelcome(user) {
 }
 
 $("login").onclick = () => openLogin("login");
+if ($("myRequests")) $("myRequests").onclick = openRequestBox;
 $("logout").onclick = async () => {
   if (!sb || !currentSession) return;
   $("logout").disabled = true;
@@ -537,14 +558,14 @@ async function openRequestBox() {
   host.innerHTML = requests.map(r => {
     const l = byId[r.listing_id] || {};
     const incoming = l.owner_id === currentSession.user.id;
-    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Request received" : "Request sent"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
+    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Request received" : "Request sent"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${!incoming && r.status === "pending" ? `<button class="secondary" data-cancel="${esc(r.id)}">Cancel request</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
   }).join("");
-  host.querySelectorAll("[data-accept],[data-decline]").forEach(btn => btn.onclick = async () => {
-    const id = btn.dataset.accept || btn.dataset.decline, status = btn.dataset.accept ? "accepted" : "declined";
+  host.querySelectorAll("[data-accept],[data-decline],[data-cancel]").forEach(btn => btn.onclick = async () => {
+    const id = btn.dataset.accept || btn.dataset.decline || btn.dataset.cancel, status = btn.dataset.accept ? "accepted" : btn.dataset.decline ? "declined" : "cancelled";
     btn.disabled = true;
     const { error: updateError } = await sb.from("booking_requests").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
     if (updateError) { toast("Could not update request: " + updateError.message); btn.disabled = false; return; }
-    toast(status === "accepted" ? "Request accepted. Both participants can now view contact details." : "Request declined.");
+    toast(status === "accepted" ? "Request accepted. Both participants can now view contact details." : status === "declined" ? "Request declined." : "Request cancelled.");
     openRequestBox();
   });
   host.querySelectorAll("[data-contact]").forEach(btn => btn.onclick = async () => {
@@ -562,6 +583,7 @@ function listItem() {
   renderListForm();
 }
 function renderListForm() {
+  if (!currentSession?.user?.id) { afterLogin = true; openLogin("login"); return; }
   openModal(`<span class="eyebrow">SHARE WITH YOUR CAMPUS</span><h2>List an item</h2><p>Add clear details so another student can request a rental.</p>
     <label>Item name<input id="listingName" maxlength="80" placeholder="e.g. Scientific calculator"></label>
     <label>Category<select id="listingCategory">${CATS.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("")}</select></label>
@@ -569,7 +591,7 @@ function renderListForm() {
     <label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label>
     <label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label>
     <label>Item description<textarea id="listingDescription" rows="3" maxlength="500" placeholder="Describe the item, its features, size, included accessories and any existing marks"></textarea></label>
-    <label>Address / pickup location<input id="listingAddress" maxlength="180" placeholder="Campus, hostel or pickup point"></label>
+    <label>Public pickup area<input id="listingAddress" maxlength="120" placeholder="Campus gate / common area / library"></label><p class="form-hint">Do not enter your home address, room number or flat number. Share exact handover details privately after acceptance.</p>
     <label>Item photo<input id="listingPhoto" type="file" accept="image/*" required></label>
     <div class="photo-preview hidden" id="photoPreview"><img id="photoPreviewImage" alt="Selected item preview"></div>
     <p class="form-hint">Upload one clear photo of your item (JPG, PNG or WebP, up to 5 MB).</p>
@@ -590,17 +612,17 @@ function renderListForm() {
       price = Number($("listingPrice").value), condition = $("listingCondition").value.trim(),
       description = $("listingDescription").value.trim(), address = $("listingAddress").value.trim(),
       photo = $("listingPhoto").files[0];
-    if (!title || !subcategory || !condition || !description || !address || !photo || !Number.isInteger(price) || price < 1) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
+    if (!title || title.length > 80 || !subcategory || !condition || condition.length > 60 || !description || description.length > 500 || !address || address.length > 120 || !photo || !Number.isInteger(price) || price < 1 || price > 100000) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
     if (needSupabase()) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
     const ext = (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const imagePath = `public/${crypto.randomUUID()}.${ext}`;
+    const imagePath = `${currentSession.user.id}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await sb.storage.from("listing-images").upload(imagePath, photo, { contentType: photo.type, upsert: false });
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
     $("saveListing").textContent = "Saving listing…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, address, image_url: publicImage.publicUrl, owner_id: currentSession?.user?.id || null });
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, pickup_area: address, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
     if (error) {
       await sb.storage.from("listing-images").remove([imagePath]);
       toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
@@ -615,7 +637,7 @@ $("listTop").onclick = listItem;
 async function loadLive() {
   if (!sb) return;
   let rows, error;
-  try { ({ data: rows, error } = await sb.from("listings").select("*").order("created_at", { ascending: false }).limit(200)); }
+  try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
   catch (e) { console.error("RentRelay: unable to load listings", e); return; }
   if (error || !rows) { if (error) console.error("RentRelay: listings query failed", error); return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
@@ -624,7 +646,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.address || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
+      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }

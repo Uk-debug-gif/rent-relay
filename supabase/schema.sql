@@ -10,6 +10,7 @@ create table if not exists public.listings (
   description text not null default '',
   image_url text,
   address text not null default '',
+  pickup_area text not null default '',
   created_at timestamptz not null default now()
 );
 -- Safe upgrades for projects where the listings table already exists.
@@ -17,6 +18,7 @@ alter table public.listings add column if not exists description text not null d
 alter table public.listings add column if not exists image_url text;
 alter table public.listings alter column owner_id drop not null;
 alter table public.listings add column if not exists address text not null default '';
+alter table public.listings add column if not exists pickup_area text not null default '';
 create index if not exists listings_owner_id_idx on public.listings(owner_id);
 alter table public.listings enable row level security;
 drop policy if exists "Anyone can read listings" on public.listings;
@@ -97,7 +99,12 @@ end $$;
 revoke execute on function public.generate_username() from public, anon, authenticated;
 revoke execute on function public.handle_verified_user() from public, anon, authenticated;
 -- This event-trigger helper is not a client-facing RPC; keep it inaccessible to API roles.
-revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    execute 'revoke execute on function public.rls_auto_enable() from public, anon, authenticated';
+  end if;
+end $$;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
@@ -187,42 +194,185 @@ revoke all on function public.booking_contact(uuid) from public,anon;
 grant execute on function public.booking_contact(uuid) to authenticated;
 
 
--- Listing contact display: guests see only a masked number and generic label;
--- signed-in users see the lender's saved name and mobile number.
-create or replace function public.listing_contact(p_listing_id uuid)
-returns table(owner_name text, mobile_display text, is_masked boolean)
-language plpgsql
-security definer
-set search_path = ''
+-- No listing_contact RPC: direct listing views must never expose a lender's phone.
+drop function if exists public.listing_contact(uuid);
+
+-- ================= Production hardening =================
+-- Require a signed-in owner for every new listing; anonymous spam is blocked.
+drop policy if exists "Anyone can create listings without an account" on public.listings;
+drop policy if exists "Users can create their own listings" on public.listings;
+create policy "Members can create their own listings" on public.listings
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()));
+revoke insert on public.listings from anon;
+grant insert on public.listings to authenticated;
+
+-- Enforce bounded fields and an allow-listed category/subcategory pair at the DB boundary.
+create or replace function public.valid_listing_category(p_category text, p_subcategory text)
+returns boolean language sql immutable set search_path = ''
+as $$
+  select case p_category
+    when 'Study Materials' then p_subcategory in ('Calculators','Notes & stationery','Study accessories')
+    when 'Books & Copies' then p_subcategory in ('Textbooks','Notebooks & copies','Novels')
+    when 'Lab Essentials' then p_subcategory in ('Lab coats','Glassware','Safety items')
+    when 'Indoor Games' then p_subcategory in ('Board games','Chess & carrom','Indoor sports')
+    when 'Outdoor Sports' then p_subcategory in ('Rackets','Balls','Sports accessories')
+    when 'Utensils & Kitchen' then p_subcategory in ('Cookware','Flasks & bottles','Dining')
+    else false end;
+$$;
+revoke all on function public.valid_listing_category(text,text) from public, anon;
+grant execute on function public.valid_listing_category(text,text) to authenticated;
+alter table public.listings drop constraint if exists listings_category_valid;
+alter table public.listings add constraint listings_category_valid
+  check (public.valid_listing_category(category, subcategory));
+alter table public.listings drop constraint if exists listings_description_length;
+alter table public.listings add constraint listings_description_length check (char_length(description) <= 500);
+alter table public.listings drop constraint if exists listings_address_length;
+alter table public.listings add constraint listings_address_length check (char_length(address) <= 120);
+alter table public.listings drop constraint if exists listings_image_url_bucket;
+alter table public.listings add constraint listings_image_url_bucket check (
+  image_url is null or (owner_id is not null and image_url like 'https://tvtmhisivwctprqmbzbj.supabase.co/storage/v1/object/public/listing-images/' || owner_id::text || '/%' and image_url ~ '^https://tvtmhisivwctprqmbzbj[.]supabase[.]co/storage/v1/object/public/listing-images/[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}[.](jpg|jpeg|png|webp)$')
+);
+
+-- Terms fields are mandatory and validated by the auth trigger before a profile can be created.
+create or replace function public.handle_verified_user() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_terms_at timestamptz;
+begin
+  if new.email_confirmed_at is null then return new; end if;
+  if coalesce(new.raw_user_meta_data->>'terms_accepted','false') <> 'true'
+     or new.raw_user_meta_data->>'terms_version' <> '2026-11-14'
+     or coalesce(new.raw_user_meta_data->>'terms_accepted_at','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+  then raise exception 'Terms acceptance is required'; end if;
+  v_terms_at := (new.raw_user_meta_data->>'terms_accepted_at')::timestamptz;
+  insert into public.profiles (id, username, full_name, mobile, email, terms_accepted, terms_version, terms_accepted_at)
+  values (new.id, public.generate_username(),
+    left(coalesce(new.raw_user_meta_data->>'full_name',''),60),
+    left(coalesce(new.raw_user_meta_data->>'mobile',''),16),
+    new.email, true, '2026-11-14', v_terms_at)
+  on conflict (id) do update set
+    full_name=excluded.full_name, mobile=excluded.mobile, email=excluded.email,
+    terms_accepted=true, terms_version=excluded.terms_version,
+    terms_accepted_at=coalesce(excluded.terms_accepted_at,public.profiles.terms_accepted_at);
+  return new;
+end $$;
+
+-- Storage: authenticated users upload into their own UUID folder and can delete only their own files.
+drop policy if exists "Anyone can upload listing photos" on storage.objects;
+drop policy if exists "Users upload their own listing photos" on storage.objects;
+create policy "Members upload their own listing photos" on storage.objects
+  for insert to authenticated with check (
+    bucket_id='listing-images' and (storage.foldername(name))[1]=(select auth.uid())::text
+    and name ~ '^[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}[.](jpg|jpeg|png|webp)$'
+  );
+drop policy if exists "Users delete their own listing photos" on storage.objects;
+create policy "Members delete their own listing photos" on storage.objects
+  for delete to authenticated using (
+    bucket_id='listing-images' and (storage.foldername(name))[1]=(select auth.uid())::text
+  );
+drop policy if exists "Members can view listing photos" on storage.objects;
+-- Public bucket read remains intentional; only the object upload/delete boundary is private.
+
+-- Prevent duplicate pending requests by one renter for the same item.
+create unique index if not exists booking_one_pending_per_renter_item
+  on public.booking_requests(listing_id,renter_id) where status='pending';
+-- Prevent overlapping accepted date ranges for the same item, including concurrent accept attempts.
+create extension if not exists btree_gist;
+drop index if exists public.booking_no_overlapping_accepted_dates;
+create or replace function public.guard_booking_overlap()
+returns trigger language plpgsql set search_path = ''
+as $body$
+begin
+  if new.status='accepted' then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.listing_id::text,0));
+    if exists (
+      select 1 from public.booking_requests br
+      where br.listing_id=new.listing_id and br.status='accepted' and br.id<>new.id
+        and daterange(br.start_date,br.start_date+br.rental_days,'[)')
+            && daterange(new.start_date,new.start_date+new.rental_days,'[)')
+    ) then raise exception 'These dates overlap another accepted rental'; end if;
+  end if;
+  return new;
+end $body$;
+drop trigger if exists booking_overlap_guard on public.booking_requests;
+create trigger booking_overlap_guard before insert or update of status,start_date,rental_days,listing_id
+on public.booking_requests for each row execute function public.guard_booking_overlap();
+
+-- Strict state machine: owner may decide pending requests; renter may cancel their own pending request.
+create or replace function public.guard_booking_status_change()
+returns trigger language plpgsql security definer set search_path = ''
 as $$
 declare v_owner uuid;
 begin
-  select l.owner_id into v_owner
-  from public.listings l
-  where l.id = p_listing_id;
-
-  if v_owner is null then
-    return;
+  if new.listing_id <> old.listing_id or new.renter_id <> old.renter_id
+     or new.start_date <> old.start_date or new.rental_days <> old.rental_days
+     or new.message <> old.message then
+    raise exception 'Booking request details cannot be changed';
   end if;
+  if old.status <> 'pending' then raise exception 'Only pending requests can change status'; end if;
+  select owner_id into v_owner from public.listings where id=old.listing_id;
+  if auth.uid() = old.renter_id and new.status='cancelled' then return new; end if;
+  if auth.uid() = v_owner and new.status in ('accepted','declined') then return new; end if;
+  raise exception 'Not allowed to change this request status';
+end $$;
+drop trigger if exists booking_status_guard on public.booking_requests;
+create trigger booking_status_guard before update on public.booking_requests
+for each row execute function public.guard_booking_status_change();
 
-  return query
-  select
-    case
-      when auth.uid() is null then 'Student'
-      else coalesce(nullif(p.full_name, ''), 'Student')
-    end,
-    case
-      when auth.uid() is null then
-        case
-          when p.mobile is null or p.mobile = '' then 'Not provided'
-          else '••••••' || right(regexp_replace(p.mobile, '[^0-9]', '', 'g'), 4)
-        end
-      else coalesce(p.mobile, 'Not provided')
-    end,
-    auth.uid() is null
-  from public.profiles p
-  where p.id = v_owner;
-end;
+drop policy if exists "Owners can decide booking requests" on public.booking_requests;
+drop policy if exists "Renters can cancel their own pending requests" on public.booking_requests;
+create policy "Owners can decide pending requests" on public.booking_requests
+  for update to authenticated using (
+    status='pending' and exists(select 1 from public.listings l where l.id=listing_id and l.owner_id=(select auth.uid()))
+  ) with check (status in ('accepted','declined'));
+create policy "Renters can cancel their own pending requests" on public.booking_requests
+  for update to authenticated using (renter_id=(select auth.uid()) and status='pending')
+  with check (renter_id=(select auth.uid()) and status='cancelled');
+
+revoke all on function public.booking_contact(uuid) from public, anon;
+grant execute on function public.booking_contact(uuid) to authenticated;
+
+-- Keep exact/private pickup addresses out of the public Data API.
+-- New clients read/write only the general pickup_area field.
+revoke select on public.listings from anon, authenticated;
+grant select (id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at)
+  on public.listings to anon, authenticated;
+revoke insert on public.listings from anon, authenticated;
+grant insert (owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area)
+  on public.listings to authenticated;
+revoke update, delete on public.listings from anon;
+revoke update on public.listings from authenticated;
+grant update (title,category,subcategory,price_per_day,condition,description,image_url,pickup_area)
+  on public.listings to authenticated;
+grant delete on public.listings to authenticated;
+revoke all on public.listings from anon;
+grant select (id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at)
+  on public.listings to anon;
+
+-- Bound the number of active listings and uploaded photos per member.
+drop policy if exists "Members can create their own listings" on public.listings;
+create policy "Members can create their own listings" on public.listings
+  for insert to authenticated
+  with check (owner_id=(select auth.uid()) and
+    (select count(*) from public.listings l where l.owner_id=(select auth.uid())) < 20);
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+create or replace function private.can_upload_listing_photo()
+returns boolean language sql security definer set search_path = ''
+as $$
+  select auth.uid() is not null and
+    (select count(*) from storage.objects o
+      where o.bucket_id='listing-images'
+        and (storage.foldername(o.name))[1]=(select auth.uid())::text) < 20;
 $$;
-revoke all on function public.listing_contact(uuid) from public;
-grant execute on function public.listing_contact(uuid) to anon, authenticated;
+revoke all on function private.can_upload_listing_photo() from public, anon;
+grant usage on schema private to authenticated;
+grant execute on function private.can_upload_listing_photo() to authenticated;
+drop policy if exists "Members upload their own listing photos" on storage.objects;
+create policy "Members upload their own listing photos" on storage.objects
+  for insert to authenticated with check (
+    bucket_id='listing-images' and (storage.foldername(name))[1]=(select auth.uid())::text
+    and name ~ '^[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}[.](jpg|jpeg|png|webp)$'
+    and private.can_upload_listing_photo()
+  );
