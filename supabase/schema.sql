@@ -144,3 +144,44 @@ create policy "Users delete their own listing photos" on storage.objects
     bucket_id = 'listing-images'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+
+-- ================= Booking requests and private accepted-booking contacts =================
+create table if not exists public.booking_requests (
+ id uuid primary key default gen_random_uuid(),
+ listing_id uuid not null references public.listings(id) on delete cascade,
+ renter_id uuid not null references auth.users(id) on delete cascade,
+ start_date date not null,
+ rental_days integer not null check (rental_days between 1 and 30),
+ message text not null default '' check (char_length(message) <= 500),
+ status text not null default 'pending' check (status in ('pending','accepted','declined','cancelled')),
+ created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create index if not exists booking_requests_listing_idx on public.booking_requests(listing_id,status,created_at desc);
+create index if not exists booking_requests_renter_idx on public.booking_requests(renter_id,created_at desc);
+alter table public.booking_requests enable row level security;
+drop policy if exists "Participants can view booking requests" on public.booking_requests;
+create policy "Participants can view booking requests" on public.booking_requests for select to authenticated using (
+ renter_id = (select auth.uid()) or exists (select 1 from public.listings l where l.id = listing_id and l.owner_id = (select auth.uid()))
+);
+drop policy if exists "Renters can request another member listing" on public.booking_requests;
+create policy "Renters can request another member listing" on public.booking_requests for insert to authenticated with check (
+ renter_id = (select auth.uid()) and exists (select 1 from public.listings l where l.id = listing_id and l.owner_id is not null and l.owner_id <> (select auth.uid())) and start_date >= current_date and rental_days between 1 and 30 and status = 'pending'
+);
+drop policy if exists "Owners can decide booking requests" on public.booking_requests;
+create policy "Owners can decide booking requests" on public.booking_requests for update to authenticated using (
+ exists (select 1 from public.listings l where l.id = listing_id and l.owner_id = (select auth.uid()))
+) with check (status in ('accepted','declined') and exists (select 1 from public.listings l where l.id = listing_id and l.owner_id = (select auth.uid())));
+grant select, insert on public.booking_requests to authenticated;
+grant update(status,updated_at) on public.booking_requests to authenticated;
+create or replace function public.booking_contact(p_booking_id uuid)
+returns table(owner_name text,owner_mobile text,renter_name text,renter_mobile text)
+language plpgsql security definer set search_path = '' as $$
+declare v_owner uuid; v_renter uuid; v_status text;
+begin
+ select l.owner_id,br.renter_id,br.status into v_owner,v_renter,v_status from public.booking_requests br join public.listings l on l.id=br.listing_id where br.id=p_booking_id;
+ if v_owner is null or v_status <> 'accepted' or auth.uid() not in (v_owner,v_renter) then raise exception 'Contact details are available only to booking participants after acceptance'; end if;
+ return query select coalesce(op.full_name,'Lender'),op.mobile,coalesce(rp.full_name,'Renter'),rp.mobile from public.profiles op join public.profiles rp on rp.id=v_renter where op.id=v_owner;
+end $$;
+revoke all on function public.booking_contact(uuid) from public,anon;
+grant execute on function public.booking_contact(uuid) to authenticated;
