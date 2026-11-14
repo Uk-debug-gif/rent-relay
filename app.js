@@ -337,7 +337,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal()
    Mobile is contact information only; it is never verified by SMS. */
 let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", resendTimer = null, currentSession = null, welcomeShownFor = null;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;\nconst AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
 function cleanMobile(raw) {
   const v = String(raw).trim().replace(/[\s()-]/g, "");
   if (/^[6-9]\d{9}$/.test(v)) return "+91" + v;               // 10-digit Indian number
@@ -411,7 +411,7 @@ function openLogin(step = "signup") {
       $("suGo").disabled = true; $("suGo").textContent = "Sending email…";
       const acceptedAt = new Date().toISOString();
       const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: AUTH_REDIRECT_URL, data: { full_name: name, mobile, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: acceptedAt } } });
-      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Send OTP"; return; }
+      if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Accept & send confirmation link"; return; }
       signupEmail = email; signupMobile = mobile; authFlow = "signup"; openCheckEmail("signup");
     };
   } else if (step === "login") {
@@ -427,7 +427,7 @@ function openLogin(step = "signup") {
       if (needSupabase()) return;
       $("liGo").disabled = true; $("liGo").textContent = "Sending email…";
       const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: AUTH_REDIRECT_URL } });
-      if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send code"; return; }
+      if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Send sign-in link"; return; }
       signupEmail = email; authFlow = "login"; openCheckEmail("login");
     };
   } else if (step === "name") {
