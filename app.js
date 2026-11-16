@@ -1,4 +1,4 @@
-/* RentRelay — frontend prototype
+/* Utileo — frontend prototype
    Pages (hash routes):  #  (home)   #/c/<category>   #/c/<category>/<subcategory>
                          #/i/<item>  #/search/<text>                              */
 
@@ -168,7 +168,7 @@ function openCategory(cid, subSlug) {
   $("subtiles").innerHTML =
     `<a class="subtile ${sub ? "" : "active"}" href="#/c/${cat.id}"><span class="sub-emoji" aria-hidden="true">${cat.emoji}</span><span><b>All</b><small>${all.length} items</small></span></a>` +
     cat.subs.map(s => `<a class="subtile ${sub && sub.name === s.name ? "active" : ""}" href="#/c/${cat.id}/${slug(s.name)}"><span class="sub-emoji" aria-hidden="true">${s.emoji}</span><span><b>${esc(s.name)}</b><small>${all.filter(i => i.sub === s.name).length} items</small></span></a>`).join("");
-  document.title = (sub ? sub.name + " — " : "") + cat.name + " | RentRelay";
+  document.title = (sub ? sub.name + " — " : "") + cat.name + " | Utileo";
   show("catalog"); renderGrid(); toTop();
 }
 
@@ -182,7 +182,7 @@ function openSearch(q) {
   $("catalogDesc").textContent = "Showing matches from every category.";
   $("catalogEmoji").textContent = "🔎";
   $("subtiles").classList.add("hidden"); $("subtiles").innerHTML = "";
-  document.title = "Search | RentRelay";
+  document.title = "Search | Utileo";
   show("catalog"); renderGrid(); toTop();
 }
 
@@ -213,7 +213,7 @@ function openItem(id) {
   const box = $("detailBody");
   if (!it) {
     box.innerHTML = `<div class="notfound"><h1>We couldn’t find that item</h1><p>It may have been removed, or it is still loading.</p><a class="primary" href="#">Back to home</a></div>`;
-    document.title = "Item not found | RentRelay"; toTop(); return;
+    document.title = "Item not found | Utileo"; toTop(); return;
   }
   const cat = catOf(it);
   $("detail").style.cssText = `--c:${cat.c};--t:${cat.t}`;
@@ -314,7 +314,7 @@ function openItem(id) {
     }
     m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent.`;
   };
-  document.title = it.title + " — " + cat.name + " | RentRelay";
+  document.title = it.title + " — " + cat.name + " | Utileo";
   toTop();
 }
 
@@ -326,7 +326,7 @@ function toTop() { if (!soft) window.scrollTo({ top: 0, behavior: "instant" }); 
 
 function openHome(anchor) {
   show("home");
-  document.title = "RentRelay — Campus rentals, made simple";
+  document.title = "Utileo — Campus rentals, made simple";
   if (soft) return;
   const el = anchor && $(anchor);
   if (el) requestAnimationFrame(() => el.scrollIntoView()); else window.scrollTo({ top: 0, behavior: "instant" });
@@ -407,7 +407,7 @@ function passwordRules(password) {
 }
 function openLogin(step = "login") {
   if (step === "signup") {
-    openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Join RentRelay</h2>
+    openModal(`<span class="eyebrow">CREATE YOUR ACCOUNT</span><h2>Join Utileo</h2>
       <p>Create your account with an email and password. We’ll send one email verification link.</p>
       <label>Full name<input id="suName" autocomplete="name" maxlength="60" placeholder="Your full name"></label>
       <label>Mobile number<input id="suMobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" maxlength="16"></label>
@@ -446,7 +446,7 @@ function openLogin(step = "login") {
         if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Create account"; return; }
         signupEmail = email; signupMobile = mobile; authFlow = "signup";
         openModal(`<span class="eyebrow">VERIFY YOUR EMAIL</span><h2>Check your inbox</h2>
-          <p>We sent one confirmation link to <b>${esc(email)}</b>. Open it once to activate your RentRelay account.</p>
+          <p>We sent one confirmation link to <b>${esc(email)}</b>. Open it once to activate your Utileo account.</p>
           <p class="note">After verification, log in anytime using your email and password. You won’t need a sign-in link again.</p>
           <button class="primary wide" id="verifyDone" type="button">Back to log in</button>`);
         $("verifyDone").onclick = () => openLogin("login");
@@ -456,13 +456,13 @@ function openLogin(step = "login") {
       }
     };
   } else if (step === "login") {
-    openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in to RentRelay</h2>
+    openModal(`<span class="eyebrow">WELCOME BACK</span><h2>Log in to Utileo</h2>
       <p>Use your registered email and password.</p>
       <label>Email address<input id="liEmail" type="email" autocomplete="email" placeholder="you@example.com" maxlength="120"></label>
       <label>Password<input id="liPassword" type="password" autocomplete="current-password" placeholder="Your password"></label>
       <button class="primary wide" id="liGo" type="button">Log in</button>
       <button class="back" id="forgotPassword" type="button">Forgot password?</button>
-      <button class="back" id="toSignup" type="button">New to RentRelay? Create an account</button>`);
+      <button class="back" id="toSignup" type="button">New to Utileo? Create an account</button>`);
     $("toSignup").onclick = () => openLogin("signup");
     $("forgotPassword").onclick = () => openLogin("forgot");
     $("liGo").onclick = async () => {
@@ -526,7 +526,7 @@ async function showWelcome(user) {
     if (data) { username = data.username || ""; name = data.full_name || name; }
   } catch (e) { /* profile may take a moment; the welcome still works */ }
   openModal(`<span class="eyebrow">YOU’RE IN</span><h2>Welcome${name ? ", " + esc(name) : ""}!</h2>
-    <p>Your email is verified.${username ? " Here is your RentRelay username:" : ""}</p>
+    <p>Your email is verified.${username ? " Here is your Utileo username:" : ""}</p>
     ${username ? `<div class="username-box" id="uname">@${esc(username)}</div>` : ""}
     <button class="primary wide" id="welcomeGo" type="button">Continue</button>`);
   $("welcomeGo").onclick = () => { closeModal(); if (afterLogin) { afterLogin = false; listItem(); } };
@@ -547,7 +547,7 @@ $("logout").onclick = async () => {
 /* ---------- Booking dashboard + private contact reveal ---------- */
 async function openRequestBox() {
   if (!currentSession?.user?.id) { openLogin("login"); return; }
-  openModal('<span class="eyebrow">YOUR RENTRELAY</span><h2>My Request</h2><div id="bookingDashboard">Loading your requests…</div>');
+  openModal('<span class="eyebrow">YOUR UTILEO</span><h2>My Request</h2><div id="bookingDashboard">Loading your requests…</div>');
   const host = $("bookingDashboard");
   const { data: requests, error } = await sb.from("booking_requests").select("*").order("created_at", { ascending: false }).limit(100);
   if (error) { host.textContent = "Could not load requests: " + error.message; return; }
@@ -638,8 +638,8 @@ async function loadLive() {
   if (!sb) return;
   let rows, error;
   try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
-  catch (e) { console.error("RentRelay: unable to load listings", e); return; }
-  if (error || !rows) { if (error) console.error("RentRelay: listings query failed", error); return; }
+  catch (e) { console.error("Utileo: unable to load listings", e); return; }
+  if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
   rows.forEach(r => {
     const cat = CATS.find(c => c.name === r.category);
@@ -653,7 +653,7 @@ async function loadLive() {
 }
 
 /* ---------- Start ---------- */
-window.addEventListener("error", event => { console.error("RentRelay runtime error:", event.error || event.message); });
+window.addEventListener("error", event => { console.error("Utileo runtime error:", event.error || event.message); });
 renderHome();
 route();
 if (sb) {
