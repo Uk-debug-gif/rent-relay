@@ -156,7 +156,7 @@ create policy "Users delete their own listing photos" on storage.objects
 -- ================= Booking requests and private accepted-booking contacts =================
 create table if not exists public.booking_requests (
  id uuid primary key default gen_random_uuid(),
- listing_id uuid not null references public.listings(id) on delete cascade,
+ listing_id uuid not null references public.listings(id) on delete restrict,
  renter_id uuid not null references auth.users(id) on delete cascade,
  start_date date not null,
  rental_days integer not null check (rental_days between 1 and 30),
@@ -235,6 +235,7 @@ alter table public.listings add constraint listings_image_url_bucket check (
 );
 
 -- Terms fields are mandatory and validated by the auth trigger before a profile can be created.
+-- Keep this version in sync with TERMS_VERSION in app.js and terms.html.
 create or replace function public.handle_verified_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare v_terms_at timestamptz;
@@ -271,7 +272,8 @@ create policy "Members delete their own listing photos" on storage.objects
     bucket_id='listing-images' and (storage.foldername(name))[1]=(select auth.uid())::text
   );
 drop policy if exists "Members can view listing photos" on storage.objects;
--- Public bucket read remains intentional; only the object upload/delete boundary is private.
+drop policy if exists "Public can view listing photos" on storage.objects;
+-- Public bucket download URLs remain usable; removing SELECT policy prevents object listing.
 
 -- Prevent duplicate pending requests by one renter for the same item.
 create unique index if not exists booking_one_pending_per_renter_item
@@ -298,7 +300,7 @@ drop trigger if exists booking_overlap_guard on public.booking_requests;
 create trigger booking_overlap_guard before insert or update of status,start_date,rental_days,listing_id
 on public.booking_requests for each row execute function public.guard_booking_overlap();
 
--- Strict state machine: owner may decide pending requests; renter may cancel their own pending request.
+-- Strict state machine: owner may decide pending requests; either participant may cancel before handover.
 create or replace function public.guard_booking_status_change()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
@@ -309,10 +311,10 @@ begin
      or new.message <> old.message then
     raise exception 'Booking request details cannot be changed';
   end if;
-  if old.status <> 'pending' then raise exception 'Only pending requests can change status'; end if;
+  if old.status not in ('pending','accepted') then raise exception 'Only pending or accepted requests can change status'; end if;
   select owner_id into v_owner from public.listings where id=old.listing_id;
-  if auth.uid() = old.renter_id and new.status='cancelled' then return new; end if;
-  if auth.uid() = v_owner and new.status in ('accepted','declined') then return new; end if;
+  if auth.uid() in (old.renter_id,v_owner) and new.status='cancelled' then return new; end if;
+  if old.status='pending' and auth.uid() = v_owner and new.status in ('accepted','declined') then return new; end if;
   raise exception 'Not allowed to change this request status';
 end $$;
 drop trigger if exists booking_status_guard on public.booking_requests;
@@ -325,9 +327,14 @@ create policy "Owners can decide pending requests" on public.booking_requests
   for update to authenticated using (
     status='pending' and exists(select 1 from public.listings l where l.id=listing_id and l.owner_id=(select auth.uid()))
   ) with check (status in ('accepted','declined'));
-create policy "Renters can cancel their own pending requests" on public.booking_requests
-  for update to authenticated using (renter_id=(select auth.uid()) and status='pending')
-  with check (renter_id=(select auth.uid()) and status='cancelled');
+create policy "Participants can cancel pending or accepted requests" on public.booking_requests
+  for update to authenticated using (
+    status in ('pending','accepted') and (renter_id=(select auth.uid()) or exists(select 1 from public.listings l where l.id=listing_id and l.owner_id=(select auth.uid())))
+  ) with check (status='cancelled' and (renter_id=(select auth.uid()) or exists(select 1 from public.listings l where l.id=listing_id and l.owner_id=(select auth.uid()))));
+
+-- Existing installations may have used ON DELETE CASCADE for listing requests.
+alter table public.booking_requests drop constraint if exists booking_requests_listing_id_fkey;
+alter table public.booking_requests add constraint booking_requests_listing_id_fkey foreign key (listing_id) references public.listings(id) on delete restrict;
 
 revoke all on function public.booking_contact(uuid) from public, anon;
 grant execute on function public.booking_contact(uuid) to authenticated;
