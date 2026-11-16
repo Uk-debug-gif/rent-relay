@@ -273,7 +273,13 @@ create policy "Members delete their own listing photos" on storage.objects
   );
 drop policy if exists "Members can view listing photos" on storage.objects;
 drop policy if exists "Public can view listing photos" on storage.objects;
--- Public bucket download URLs remain usable; removing SELECT policy prevents object listing.
+drop policy if exists "Members can inspect own listing photos" on storage.objects;
+-- Public download URLs remain usable. Authenticated owners can SELECT only their own
+-- UUID folder so Storage.remove() can verify objects without exposing bucket-wide listings.
+create policy "Members can inspect own listing photos" on storage.objects
+  for select to authenticated using (
+    bucket_id='listing-images' and (storage.foldername(name))[1]=(select auth.uid())::text
+  );
 
 -- Prevent duplicate pending requests by one renter for the same item.
 create unique index if not exists booking_one_pending_per_renter_item
