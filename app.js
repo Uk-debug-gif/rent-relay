@@ -259,8 +259,11 @@ function openItem(id) {
     $("deleteMyListing").onclick = async () => {
       if (!window.confirm("Delete this listing? This cannot be undone.")) return;
       const btn = $("deleteMyListing"); btn.disabled = true; btn.textContent = "Deleting…";
-      const { error } = await sb.from("listings").delete().eq("id", it.id.replace("live-", ""));
-      if (error) { toast("Could not delete listing: " + error.message); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
+      const listingId = it.id.replace("live-", "");
+      const { count, error: requestCheckError } = await sb.from("booking_requests").select("id", { count: "exact", head: true }).eq("listing_id", listingId);
+      if (requestCheckError || count > 0) { toast(count > 0 ? "This listing has booking history. Resolve its requests before deleting it." : "Could not check booking history. Please try again."); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
+      const { error } = await sb.from("listings").delete().eq("id", listingId);
+      if (error) { toast("Could not delete listing. Please try again."); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
       if (it.image_url) {
         const marker = "/listing-images/";
         const pos = it.image_url.indexOf(marker);
@@ -309,7 +312,11 @@ function openItem(id) {
       if (currentSession.user.id === it.owner_id) { toast("You cannot request your own listing."); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
       $("rentBtn").textContent = "Sending request…";
       const { error } = await sb.from("booking_requests").insert({ listing_id: it.id.replace("live-", ""), renter_id: currentSession.user.id, start_date: startValue, rental_days: n, message: $("rentMessage").value.trim() });
-      if (error) { toast("Could not send request: " + error.message); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
+      if (error) {
+        const duplicate = error.code === "23505" || /booking_one_pending_per_renter_item|duplicate key/i.test(error.message || "");
+        toast(duplicate ? "You already have a pending request for this item. Check My Requests." : "Could not send your request. Please try again.");
+        $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return;
+      }
       m.className = "note ok"; m.textContent = "Request sent. The owner must accept it before contact details are shared. Open your My Request to track it."; $("rentBtn").textContent = "Request sent ✓";
       return;
     }
@@ -564,13 +571,13 @@ async function openRequestBox() {
   host.innerHTML = requests.map(r => {
     const l = byId[r.listing_id] || {};
     const incoming = l.owner_id === currentSession.user.id;
-    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Request received" : "Request sent"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${!incoming && r.status === "pending" ? `<button class="secondary" data-cancel="${esc(r.id)}">Cancel request</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
+    return `<article class="booking-card" data-booking="${esc(r.id)}"><b>${esc(l.title || "Campus item")}</b><p>${incoming ? "Request received" : "Request sent"} · ${esc(r.start_date)} · ${r.rental_days} day(s)</p><p>Status: <b>${esc(r.status.toUpperCase())}</b></p>${r.message ? `<p>${esc(r.message)}</p>` : ""}${incoming && r.status === "pending" ? `<button class="primary" data-accept="${esc(r.id)}">Accept</button> <button class="secondary" data-decline="${esc(r.id)}">Decline</button>` : ""}${["pending","accepted"].includes(r.status) ? `<button class="secondary" data-cancel="${esc(r.id)}">${r.status === "accepted" ? "Cancel accepted rental" : "Cancel request"}</button>` : ""}${r.status === "accepted" ? `<button class="secondary" data-contact="${esc(r.id)}">Show contact numbers</button><div class="contact-details" id="contact-${esc(r.id)}"></div>` : ""}</article>`;
   }).join("");
   host.querySelectorAll("[data-accept],[data-decline],[data-cancel]").forEach(btn => btn.onclick = async () => {
     const id = btn.dataset.accept || btn.dataset.decline || btn.dataset.cancel, status = btn.dataset.accept ? "accepted" : btn.dataset.decline ? "declined" : "cancelled";
     btn.disabled = true;
     const { error: updateError } = await sb.from("booking_requests").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
-    if (updateError) { toast("Could not update request: " + updateError.message); btn.disabled = false; return; }
+    if (updateError) { toast(/overlap/i.test(updateError.message || "") ? "Those dates overlap another accepted rental. Choose different dates." : "Could not update the request. Please refresh and try again."); btn.disabled = false; return; }
     toast(status === "accepted" ? "Request accepted. Both participants can now view contact details." : status === "declined" ? "Request declined." : "Request cancelled.");
     openRequestBox();
   });
