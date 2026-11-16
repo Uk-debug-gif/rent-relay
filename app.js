@@ -4,7 +4,7 @@
 
 const SUPABASE_URL = "https://tvtmhisivwctprqmbzbj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Y2qhEXQVAEdSD5izte37yQ_ZZGLcB9Y";
-const TERMS_VERSION = "2026-11-14";
+const TERMS_VERSION = "2026-11-14"; // Keep in sync with supabase/schema.sql and terms.html.
 const supabaseReady = !!(window.supabase && SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_"));
 const sb = supabaseReady ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -174,7 +174,7 @@ function openCategory(cid, subSlug) {
 
 function openSearch(q) {
   state.cat = null; state.sub = null; state.search = true;
-  if (!soft) { $("search").value = q; $("sort").value = "recommended"; }
+  if (!soft) { $("search").value = q; $("sort").value = "recommended"; $("minPrice").value = ""; $("maxPrice").value = ""; }
   $("catalog").style.cssText = "--c:#6d44c9;--t:#f1ebfb";
   $("crumbs").innerHTML = `<a href="#">Home</a><span>›</span><b>Search</b>`;
   $("catalogEyebrow").textContent = "SEARCH RESULTS";
@@ -380,7 +380,7 @@ $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) clo
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- Email + password authentication ---------- */
-let afterLoginRequestId = null, signupEmail = "", signupMobile = "", authFlow = "login", currentSession = null, welcomeShownFor = null;
+let afterLoginRequestId = null, afterLoginListItem = false, signupEmail = "", signupMobile = "", authFlow = "login", currentSession = null, welcomeShownFor = null;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
 
@@ -397,6 +397,13 @@ function setAuthUI(session) {
   if ($("myRequests")) $("myRequests").hidden = !currentSession;
   if ($("mobileMyRequests")) $("mobileMyRequests").hidden = !currentSession;
   if ($("mobileLogout")) $("mobileLogout").hidden = !currentSession;
+  // Rebuild an open item page so its request CTA reflects the latest auth state.
+  const route = location.hash.replace(/^#/, "");
+  if (route.startsWith("/i/")) {
+    let itemId = route.slice(3);
+    try { itemId = decodeURIComponent(itemId); } catch (e) { /* keep raw id */ }
+    openItem(itemId);
+  }
 }
 function needSupabase() {
   if (sb) return false;
@@ -540,7 +547,16 @@ async function showWelcome(user) {
     <p>Your email is verified.${username ? " Here is your Utileo username:" : ""}</p>
     ${username ? `<div class="username-box" id="uname">@${esc(username)}</div>` : ""}
     <button class="primary wide" id="welcomeGo" type="button">Continue</button>`);
-  $("welcomeGo").onclick = () => { closeModal(); if (afterLoginRequestId) { const itemId = afterLoginRequestId; afterLoginRequestId = null; location.hash = "#/i/" + encodeURIComponent(itemId); } };
+  $("welcomeGo").onclick = () => {
+    closeModal();
+    if (afterLoginRequestId) {
+      const itemId = afterLoginRequestId; afterLoginRequestId = null;
+      location.hash = "#/i/" + encodeURIComponent(itemId);
+    } else if (afterLoginListItem) {
+      afterLoginListItem = false;
+      renderListForm();
+    }
+  };
 }
 
 $("login").onclick = () => openLogin("login");
@@ -596,7 +612,7 @@ function listItem() {
   renderListForm();
 }
 function renderListForm() {
-  if (!currentSession?.user?.id) { afterLogin = true; openLogin("login"); return; }
+  if (!currentSession?.user?.id) { afterLoginListItem = true; openLogin("login"); return; }
   openModal(`<span class="eyebrow">SHARE WITH YOUR CAMPUS</span><h2>List an item</h2><p>Add clear details so another student can request a rental.</p>
     <label>Item name<input id="listingName" maxlength="80" placeholder="e.g. Scientific calculator"></label>
     <label>Category<select id="listingCategory">${CATS.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("")}</select></label>
