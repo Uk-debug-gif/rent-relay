@@ -71,7 +71,7 @@ After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to by
 
 ## Terms & Conditions acceptance
 
-- New account signup requires an unticked, affirmative checkbox agreeing to `terms.html` and its Privacy Notice before an email magic link can be sent.
+- New account signup requires an unticked, affirmative checkbox agreeing to `terms.html` and its Privacy Notice before a confirmation email can be sent.
 - Signup records the Terms version and acceptance timestamp in Supabase Auth user metadata; the profile trigger copies these values to `profiles`.
 - Existing accounts can still sign in without re-accepting. If the terms materially change, a proper re-consent flow should be implemented.
 - The legal page is a working draft, not a lawyer-certified compliance document. Before public/commercial launch, fill the operator's legal identity, address, customer support and grievance officer details and obtain Indian legal review.
@@ -82,6 +82,6 @@ After changes reach `main`, wait for GitHub Pages to publish. Hard-refresh to by
 
 - Live community listings are loaded from Supabase and are prioritised in the featured section; demo examples remain clearly labelled.
 - A signed-in member's listing stores their Auth user ID; anonymous community listings store no owner ID.
-- Signed-in members can sign out from the header.
-- Member listings support rental requests and owner accept/decline decisions. Contact details are revealed only after acceptance. Payments, in-app messaging, availability collision calendars, ratings and dispute handling are not implemented.
+- Signed-in members can sign out from the header or the mobile navigation menu.
+- Member listings support rental requests, owner accept/decline decisions and cancellation by either participant before handover. Contact details are revealed only while a request is accepted. Payments, in-app messaging, availability collision calendars, ratings and dispute handling are not implemented.
 - Frontend JavaScript syntax and key UI wiring were checked after the latest changes. A real browser/device test and end-to-end signup/listing test are still required.
