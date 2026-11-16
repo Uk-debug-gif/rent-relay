@@ -1,6 +1,6 @@
-# RentRelay — project setup and current status
+# Utileo — project setup and current status
 
-RentRelay is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email/password signup and login with email confirmation and password reset, and a public student listing form.
+Utileo is a campus peer-to-peer rental marketplace prototype. It currently provides a sample catalogue, category and subcategory browsing, keyword search, daily-price filters, sorting, item detail pages, a rental-cost calculator, email/password signup and login with email confirmation and password reset, and a public student listing form.
 
 ## What works in the frontend
 
@@ -47,7 +47,7 @@ The current `main` branch is already configured with this project URL and its pu
 
 ## 5. Optional admin email notification
 
-The optional Supabase Edge Function lives in `supabase/functions/notify-new-user/`. Configure these server-side Supabase Function Secrets: `RENTRELAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RENTRELAY_ADMIN_EMAIL` and `RENTRELAY_FROM_EMAIL` (a sender address verified with your email provider). Keep all values in Supabase Function Secrets, never in frontend code. The notification intentionally avoids including the user's mobile number or internal user ID.
+The optional Supabase Edge Function lives in `supabase/functions/notify-new-user/`. Configure these server-side Supabase Function Secrets: `UTILEO_WEBHOOK_SECRET`, `RESEND_API_KEY`, `UTILEO_ADMIN_EMAIL` and `UTILEO_FROM_EMAIL` (a sender address verified with your email provider). Keep all values in Supabase Function Secrets, never in frontend code. The notification intentionally avoids including the user's mobile number or internal user ID.
 
 ## Pre-launch checklist
 
