@@ -1,4 +1,4 @@
-/* RentRelay — theme: deep aubergine + coral + violet + amber, warm white surfaces */
+/* Utileo — theme: deep aubergine + coral + violet + amber, warm white surfaces */
 :root{
   --navy:#2b1d3d; --text:#41364f; --muted:#6f6680; --line:#ece5f0;
   --brand:#e14b4b; --brand-dark:#c73b3b; --brand-soft:#fff0ee;
@@ -385,7 +385,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .photo-preview img{display:block;width:100%;max-height:220px;object-fit:contain}
 
 
-/* ---------- RentRelay visual refresh: calm ink + jade + soft ivory ---------- */
+/* ---------- Utileo visual refresh: calm ink + jade + soft ivory ---------- */
 :root{
   --navy:#172b35;
   --text:#33464d;
