@@ -155,7 +155,7 @@ function openCategory(cid, subSlug) {
   if (!cat) { openHome(); return; }
   const sub = cat.subs.find(s => slug(s.name) === subSlug) || null;
   state.cat = cat; state.sub = sub; state.search = false;
-  if (!soft) { $("search").value = ""; $("sort").value = "recommended"; }
+  if (!soft) { $("search").value = ""; $("sort").value = "recommended"; $("minPrice").value = ""; $("maxPrice").value = ""; }
   const page = $("catalog");
   page.style.cssText = `--c:${cat.c};--t:${cat.t}`;
   $("crumbs").innerHTML = `<a href="#">Home</a><span>›</span>` + (sub ? `<a href="#/c/${cat.id}">${esc(cat.name)}</a><span>›</span><b>${esc(sub.name)}</b>` : `<b>${esc(cat.name)}</b>`);
@@ -280,7 +280,7 @@ function openItem(id) {
   } else if (it.live) { contactPanel.innerHTML = "<b>Community listing</b><p>This older listing has no linked owner account and cannot receive booking requests.</p>"; } else if (contactPanel) { contactPanel.hidden = true; }
 
   const signInRequest = $("rentSignIn");
-  if (signInRequest) signInRequest.onclick = () => { afterLogin = true; openLogin("login"); };
+  if (signInRequest) signInRequest.onclick = () => { afterLoginRequestId = it.id; openLogin("login"); };
 
   const days = $("rentDays");
   const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
@@ -301,7 +301,8 @@ function openItem(id) {
     const startValue = $("rentStart").value;
     if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
-    $("rentBtn").disabled = true; $("rentBtn").textContent = "Estimate calculated ✓";
+    const isEstimate = !(it.live && it.owner_id);
+    if (!isEstimate) { $("rentBtn").disabled = true; $("rentBtn").textContent = "Sending request…"; }
     const m = $("rentMsg"); m.className = "note ok";
     if (it.live && it.owner_id) {
       if (!currentSession?.user?.id) { toast("Please sign in before sending a rental request."); openLogin("login"); $("rentBtn").disabled = false; $("rentBtn").textContent = "Send rental request"; return; }
@@ -313,6 +314,7 @@ function openItem(id) {
       return;
     }
     m.textContent = `Thanks, ${name}. Your estimated total for ${it.title} is ${money(it.price * n)} for ${n} day${n > 1 ? "s" : ""}. No booking has been sent.`;
+    $("rentBtn").disabled = false; $("rentBtn").textContent = "Calculate rental total";
   };
   document.title = it.title + " — " + cat.name + " | Utileo";
   toTop();
@@ -371,14 +373,14 @@ $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) clo
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- Email + password authentication ---------- */
-let afterLogin = false, signupEmail = "", signupMobile = "", authFlow = "login", currentSession = null, welcomeShownFor = null;
-const EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/;
+let afterLoginRequestId = null, signupEmail = "", signupMobile = "", authFlow = "login", currentSession = null, welcomeShownFor = null;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
 
 function cleanMobile(raw) {
-  const v = String(raw).trim().replace(/[\\s()-]/g, "");
-  if (/^[6-9]\\d{9}$/.test(v)) return "+91" + v;
-  if (/^\\+[1-9]\\d{7,14}$/.test(v)) return v;
+  const v = String(raw).trim().replace(/[\s()-]/g, "");
+  if (/^[6-9]\d{9}$/.test(v)) return "+91" + v;
+  if (/^\+[1-9]\d{7,14}$/.test(v)) return v;
   return null;
 }
 function setAuthUI(session) {
@@ -386,6 +388,8 @@ function setAuthUI(session) {
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
   if ($("myRequests")) $("myRequests").hidden = !currentSession;
+  if ($("mobileMyRequests")) $("mobileMyRequests").hidden = !currentSession;
+  if ($("mobileLogout")) $("mobileLogout").hidden = !currentSession;
 }
 function needSupabase() {
   if (sb) return false;
@@ -421,7 +425,7 @@ function openLogin(step = "login") {
       <button class="back" id="toLogin" type="button">Already have an account? Log in</button>`);
     $("toLogin").onclick = () => openLogin("login");
     $("suGo").onclick = async () => {
-      const name = $("suName").value.trim().replace(/\\s+/g, " ");
+      const name = $("suName").value.trim().replace(/\s+/g, " ");
       const mobile = cleanMobile($("suMobile").value);
       const email = $("suEmail").value.trim().toLowerCase();
       const password = $("suPassword").value;
@@ -529,11 +533,13 @@ async function showWelcome(user) {
     <p>Your email is verified.${username ? " Here is your Utileo username:" : ""}</p>
     ${username ? `<div class="username-box" id="uname">@${esc(username)}</div>` : ""}
     <button class="primary wide" id="welcomeGo" type="button">Continue</button>`);
-  $("welcomeGo").onclick = () => { closeModal(); if (afterLogin) { afterLogin = false; listItem(); } };
+  $("welcomeGo").onclick = () => { closeModal(); if (afterLoginRequestId) { const itemId = afterLoginRequestId; afterLoginRequestId = null; location.hash = "#/i/" + encodeURIComponent(itemId); } };
 }
 
 $("login").onclick = () => openLogin("login");
 if ($("myRequests")) $("myRequests").onclick = openRequestBox;
+if ($("mobileMyRequests")) $("mobileMyRequests").onclick = () => { $("mainNav").classList.remove("open"); openRequestBox(); };
+if ($("mobileLogout")) $("mobileLogout").onclick = () => { $("mainNav").classList.remove("open"); $("logout").click(); };
 $("logout").onclick = async () => {
   if (!sb || !currentSession) return;
   $("logout").disabled = true;
@@ -616,7 +622,8 @@ function renderListForm() {
     if (needSupabase()) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
-    const ext = (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const ext = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[photo.type];
+    if (!ext) { toast("Choose a JPG, PNG or WebP image."); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const imagePath = `${currentSession.user.id}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await sb.storage.from("listing-images").upload(imagePath, photo, { contentType: photo.type, upsert: false });
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
