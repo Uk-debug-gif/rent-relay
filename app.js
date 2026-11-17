@@ -405,6 +405,18 @@ function setAuthUI(session) {
     openItem(itemId);
   }
 }
+
+// Consume deferred navigation/form actions after either login or signup.
+function continueAfterAuth() {
+  if (afterLoginRequestId) {
+    const itemId = afterLoginRequestId;
+    afterLoginRequestId = null;
+    location.hash = "#/i/" + encodeURIComponent(itemId);
+  } else if (afterLoginListItem) {
+    afterLoginListItem = false;
+    renderListForm();
+  }
+}
 function needSupabase() {
   if (sb) return false;
   toast("Supabase setup pending — add project URL and publishable key first.");
@@ -491,7 +503,7 @@ function openLogin(step = "login") {
       try {
         const { data, error } = await sb.auth.signInWithPassword({ email, password });
         if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Log in"; return; }
-        setAuthUI(data.session); closeModal(); toast("You’re logged in.");
+        setAuthUI(data.session); closeModal(); toast("You’re logged in."); continueAfterAuth();
       } catch (error) {
         toast("Could not log in. Please try again.");
         $("liGo").disabled = false; $("liGo").textContent = "Log in";
@@ -549,13 +561,7 @@ async function showWelcome(user) {
     <button class="primary wide" id="welcomeGo" type="button">Continue</button>`);
   $("welcomeGo").onclick = () => {
     closeModal();
-    if (afterLoginRequestId) {
-      const itemId = afterLoginRequestId; afterLoginRequestId = null;
-      location.hash = "#/i/" + encodeURIComponent(itemId);
-    } else if (afterLoginListItem) {
-      afterLoginListItem = false;
-      renderListForm();
-    }
+    continueAfterAuth();
   };
 }
 
