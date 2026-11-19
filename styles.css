@@ -29,6 +29,7 @@ a{color:inherit;text-decoration:none}
 nav#mainNav{display:flex;gap:28px;font-size:14px;font-weight:600;color:var(--muted);margin-left:12px}
 nav#mainNav a:hover{color:var(--brand)}
 .header-actions{margin-left:auto;display:flex;gap:10px;align-items:center}
+.user-handle{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700;color:var(--muted)}
 .menu-btn{display:none;border:1px solid var(--line);background:#fff;border-radius:10px;width:42px;height:42px;font-size:18px}
 
 /* ---------- buttons ---------- */
@@ -533,6 +534,7 @@ body.modal-open{overflow:hidden}
   .wrap{padding-left:16px;padding-right:16px}
 }
 @media(max-width:380px){
+  .user-handle{max-width:68px;font-size:10px}
   .header-in{padding:0 10px}
   .logo{font-size:17px}
   .header-actions{gap:4px}
