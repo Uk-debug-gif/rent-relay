@@ -211,6 +211,10 @@ function openItem(id) {
   const it = ITEMS.find(x => x.id === id);
   show("detail");
   const box = $("detailBody");
+  if (!it && id.startsWith("live-") && !liveListingsLoaded) {
+    box.innerHTML = '<div class="notfound"><h1>Loading item…</h1><p>Fetching the latest campus listing.</p></div>';
+    document.title = "Loading item | Utileo"; return;
+  }
   if (!it) {
     box.innerHTML = `<div class="notfound"><h1>We couldn’t find that item</h1><p>It may have been removed, or it is still loading.</p><a class="primary" href="#">Back to home</a></div>`;
     document.title = "Item not found | Utileo"; toTop(); return;
@@ -675,12 +679,13 @@ $("listHero").onclick = listItem;
 $("listTop").onclick = listItem;
 
 /* ---------- Live listings from Supabase (merged into the browse pages) ---------- */
+let liveListingsLoaded = false;
 async function loadLive() {
-  if (!sb) return;
+  if (!sb) { liveListingsLoaded = true; return; }
   let rows, error;
   try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
-  catch (e) { console.error("Utileo: unable to load listings", e); return; }
-  if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); return; }
+  catch (e) { console.error("Utileo: unable to load listings", e); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
+  if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
   rows.forEach(r => {
     const cat = CATS.find(c => c.name === r.category);
@@ -689,6 +694,7 @@ async function loadLive() {
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
       desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
+  liveListingsLoaded = true;
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
 }
