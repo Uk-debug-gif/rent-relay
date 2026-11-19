@@ -156,7 +156,7 @@ create policy "Users delete their own listing photos" on storage.objects
 -- ================= Booking requests and private accepted-booking contacts =================
 create table if not exists public.booking_requests (
  id uuid primary key default gen_random_uuid(),
- listing_id uuid not null references public.listings(id) on delete restrict,
+ listing_id uuid not null references public.listings(id) on delete cascade,
  renter_id uuid not null references auth.users(id) on delete cascade,
  start_date date not null,
  rental_days integer not null check (rental_days between 1 and 30),
@@ -340,7 +340,28 @@ create policy "Participants can cancel pending or accepted requests" on public.b
 
 -- Existing installations may have used ON DELETE CASCADE for listing requests.
 alter table public.booking_requests drop constraint if exists booking_requests_listing_id_fkey;
-alter table public.booking_requests add constraint booking_requests_listing_id_fkey foreign key (listing_id) references public.listings(id) on delete restrict;
+alter table public.booking_requests add constraint booking_requests_listing_id_fkey foreign key (listing_id) references public.listings(id) on delete cascade;
+ 
+-- Prevent direct API/SQL deletion while an active booking exists.
+create or replace function public.prevent_listing_delete_with_active_booking()
+returns trigger language plpgsql set search_path = ''
+as $
+begin
+  if exists (
+    select 1 from public.booking_requests br
+    where br.listing_id = old.id and br.status in ('pending','accepted')
+  ) then
+    raise exception 'Listing cannot be deleted while it has pending or accepted booking requests.'
+      using errcode = '23503';
+  end if;
+  return old;
+end;
+$;
+drop trigger if exists prevent_listing_delete_with_active_booking on public.listings;
+create trigger prevent_listing_delete_with_active_booking
+before delete on public.listings
+for each row execute function public.prevent_listing_delete_with_active_booking();
+
 
 revoke all on function public.booking_contact(uuid) from public, anon;
 grant execute on function public.booking_contact(uuid) to authenticated;

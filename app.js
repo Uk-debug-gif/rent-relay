@@ -211,6 +211,10 @@ function openItem(id) {
   const it = ITEMS.find(x => x.id === id);
   show("detail");
   const box = $("detailBody");
+  if (!it && id.startsWith("live-") && !liveListingsLoaded) {
+    box.innerHTML = '<div class="notfound"><h1>Loading item…</h1><p>Fetching the latest campus listing.</p></div>';
+    document.title = "Loading item | Utileo"; return;
+  }
   if (!it) {
     box.innerHTML = `<div class="notfound"><h1>We couldn’t find that item</h1><p>It may have been removed, or it is still loading.</p><a class="primary" href="#">Back to home</a></div>`;
     document.title = "Item not found | Utileo"; toTop(); return;
@@ -260,8 +264,8 @@ function openItem(id) {
       if (!window.confirm("Delete this listing? This cannot be undone.")) return;
       const btn = $("deleteMyListing"); btn.disabled = true; btn.textContent = "Deleting…";
       const listingId = it.id.replace("live-", "");
-      const { count, error: requestCheckError } = await sb.from("booking_requests").select("id", { count: "exact", head: true }).eq("listing_id", listingId);
-      if (requestCheckError || count > 0) { toast(count > 0 ? "This listing has booking history. Resolve its requests before deleting it." : "Could not check booking history. Please try again."); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
+      const { count, error: requestCheckError } = await sb.from("booking_requests").select("id", { count: "exact", head: true }).eq("listing_id", listingId).in("status", ["pending", "accepted"]);
+      if (requestCheckError || count > 0) { toast(count > 0 ? "This listing has pending or accepted requests. Cancel or resolve them before deleting it." : "Could not check active requests. Please try again."); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
       const { error } = await sb.from("listings").delete().eq("id", listingId);
       if (error) { toast("Could not delete listing. Please try again."); btn.disabled = false; btn.textContent = "Delete my listing"; return; }
       if (it.image_url) {
@@ -391,15 +395,19 @@ function cleanMobile(raw) {
   return null;
 }
 function setAuthUI(session) {
+  const previousUserId = currentSession?.user?.id || null;
   currentSession = session && session.user ? session : null;
+  const nextUserId = currentSession?.user?.id || null;
+  const authStateChanged = previousUserId !== nextUserId;
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
   if ($("myRequests")) $("myRequests").hidden = !currentSession;
   if ($("mobileMyRequests")) $("mobileMyRequests").hidden = !currentSession;
   if ($("mobileLogout")) $("mobileLogout").hidden = !currentSession;
-  // Rebuild an open item page so its request CTA reflects the latest auth state.
+  // Rebuild only when signed-in identity actually changes; token refreshes must
+  // not destroy in-progress item form fields or scroll position.
   const route = location.hash.replace(/^#/, "");
-  if (route.startsWith("/i/")) {
+  if (authStateChanged && route.startsWith("/i/")) {
     let itemId = route.slice(3);
     try { itemId = decodeURIComponent(itemId); } catch (e) { /* keep raw id */ }
     openItem(itemId);
@@ -475,6 +483,7 @@ function openLogin(step = "login") {
         });
         if (error) { toast(friendlyAuthError(error)); $("suGo").disabled = false; $("suGo").textContent = "Create account"; return; }
         signupEmail = email; signupMobile = mobile; authFlow = "signup";
+        try { localStorage.setItem("utileo_pending_verified_welcome", email); } catch (e) { /* optional welcome marker */ }
         openModal(`<span class="eyebrow">VERIFY YOUR EMAIL</span><h2>Check your inbox</h2>
           <p>We sent one confirmation link to <b>${esc(email)}</b>. Open it once to activate your Utileo account.</p>
           <p class="note">After verification, log in anytime using your email and password. You won’t need a sign-in link again.</p>
@@ -670,12 +679,13 @@ $("listHero").onclick = listItem;
 $("listTop").onclick = listItem;
 
 /* ---------- Live listings from Supabase (merged into the browse pages) ---------- */
+let liveListingsLoaded = false;
 async function loadLive() {
-  if (!sb) return;
+  if (!sb) { liveListingsLoaded = true; return; }
   let rows, error;
   try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
-  catch (e) { console.error("Utileo: unable to load listings", e); return; }
-  if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); return; }
+  catch (e) { console.error("Utileo: unable to load listings", e); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
+  if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
   rows.forEach(r => {
     const cat = CATS.find(c => c.name === r.category);
@@ -684,6 +694,7 @@ async function loadLive() {
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
       desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
+  liveListingsLoaded = true;
   soft = true;
   try { renderHome(); route(); } finally { soft = false; }
 }
@@ -698,8 +709,13 @@ if (sb) {
     setAuthUI(session);
     if (event === "PASSWORD_RECOVERY") openSetNewPassword();
     if (event === "SIGNED_IN" && session?.user && welcomeShownFor !== session.user.id) {
-      welcomeShownFor = session.user.id;
-      showWelcome(session.user);
+      let verifiedEmail = "";
+      try { verifiedEmail = localStorage.getItem("utileo_pending_verified_welcome") || ""; } catch (e) { /* storage may be unavailable */ }
+      if (verifiedEmail && verifiedEmail.toLowerCase() === String(session.user.email || "").toLowerCase()) {
+        welcomeShownFor = session.user.id;
+        try { localStorage.removeItem("utileo_pending_verified_welcome"); } catch (e) { /* ignore */ }
+        showWelcome(session.user);
+      }
     }
   });
   loadLive();
