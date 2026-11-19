@@ -112,14 +112,14 @@ function toast(msg) {
 }
 let modalPreviousFocus = null;
 function openModal(html) {
-  modalPreviousFocus = document.activeElement;
+  if ($("overlay").classList.contains("hidden")) modalPreviousFocus = document.activeElement;
   $("modalBody").innerHTML = html;
   $("overlay").classList.remove("hidden");
   document.body.classList.add("modal-open");
   const f = $("modalBody").querySelector("input,select");
   if (f) f.focus();
 }
-function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").innerHTML = ""; document.body.classList.remove("modal-open"); if (modalPreviousFocus?.focus) modalPreviousFocus.focus(); }
+function closeModal() { $("overlay").classList.add("hidden"); $("modalBody").innerHTML = ""; document.body.classList.remove("modal-open"); const previousFocus = modalPreviousFocus; modalPreviousFocus = null; if (previousFocus?.isConnected && previousFocus.focus) previousFocus.focus(); }
 
 function card(it) {
   const c = catOf(it);
@@ -401,6 +401,20 @@ function setAuthUI(session) {
   const authStateChanged = previousUserId !== nextUserId;
   $("login").hidden = !!currentSession;
   $("logout").hidden = !currentSession;
+  const userHandle = $("userHandle");
+  if (userHandle) {
+    userHandle.hidden = !currentSession;
+    userHandle.textContent = "";
+    if (authStateChanged && currentSession && sb) {
+      const userId = currentSession.user.id;
+      sb.from("profiles").select("username").eq("id", userId).maybeSingle().then(({ data, error }) => {
+        if (!error && data?.username && currentSession?.user?.id === userId) {
+          userHandle.textContent = "@" + data.username;
+          userHandle.hidden = false;
+        }
+      }).catch(() => {});
+    }
+  }
   if ($("myRequests")) $("myRequests").hidden = !currentSession;
   if ($("mobileMyRequests")) $("mobileMyRequests").hidden = !currentSession;
   if ($("mobileLogout")) $("mobileLogout").hidden = !currentSession;
@@ -510,8 +524,12 @@ function openLogin(step = "login") {
       if (needSupabase()) return;
       $("liGo").disabled = true; $("liGo").textContent = "Logging in…";
       try {
+        // A manual password login must not consume a stale signup-browser welcome marker.
+        // Clear it before auth emits SIGNED_IN, avoiding a race with the auth listener.
+        try { localStorage.removeItem("utileo_pending_verified_welcome"); } catch (e) { /* optional storage */ }
         const { data, error } = await sb.auth.signInWithPassword({ email, password });
         if (error) { toast(friendlyAuthError(error)); $("liGo").disabled = false; $("liGo").textContent = "Log in"; return; }
+        try { localStorage.removeItem("utileo_pending_verified_welcome"); } catch (e) { /* optional storage */ }
         setAuthUI(data.session); closeModal(); toast("You’re logged in."); continueAfterAuth();
       } catch (error) {
         toast("Could not log in. Please try again.");
