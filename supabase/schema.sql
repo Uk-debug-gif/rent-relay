@@ -156,7 +156,7 @@ create policy "Users delete their own listing photos" on storage.objects
 -- ================= Booking requests and private accepted-booking contacts =================
 create table if not exists public.booking_requests (
  id uuid primary key default gen_random_uuid(),
- listing_id uuid not null references public.listings(id) on delete restrict,
+ listing_id uuid not null references public.listings(id) on delete cascade,
  renter_id uuid not null references auth.users(id) on delete cascade,
  start_date date not null,
  rental_days integer not null check (rental_days between 1 and 30),
@@ -340,7 +340,7 @@ create policy "Participants can cancel pending or accepted requests" on public.b
 
 -- Existing installations may have used ON DELETE CASCADE for listing requests.
 alter table public.booking_requests drop constraint if exists booking_requests_listing_id_fkey;
-alter table public.booking_requests add constraint booking_requests_listing_id_fkey foreign key (listing_id) references public.listings(id) on delete restrict;
+alter table public.booking_requests add constraint booking_requests_listing_id_fkey foreign key (listing_id) references public.listings(id) on delete cascade;
 
 revoke all on function public.booking_contact(uuid) from public, anon;
 grant execute on function public.booking_contact(uuid) to authenticated;
