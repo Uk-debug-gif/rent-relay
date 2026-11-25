@@ -242,7 +242,7 @@ declare v_terms_at timestamptz;
 begin
   if new.email_confirmed_at is null then return new; end if;
   if coalesce(new.raw_user_meta_data->>'terms_accepted','false') <> 'true'
-     or new.raw_user_meta_data->>'terms_version' <> '2026-11-14'
+     or new.raw_user_meta_data->>'terms_version' <> '2026-11-25'
      or coalesce(new.raw_user_meta_data->>'terms_accepted_at','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
   then raise exception 'Terms acceptance is required'; end if;
   v_terms_at := (new.raw_user_meta_data->>'terms_accepted_at')::timestamptz;
@@ -250,7 +250,7 @@ begin
   values (new.id, public.generate_username(),
     left(coalesce(new.raw_user_meta_data->>'full_name',''),60),
     left(coalesce(new.raw_user_meta_data->>'mobile',''),16),
-    new.email, true, '2026-11-14', v_terms_at)
+    new.email, true, '2026-11-25', v_terms_at)
   on conflict (id) do update set
     full_name=excluded.full_name, mobile=excluded.mobile, email=excluded.email,
     terms_accepted=true, terms_version=excluded.terms_version,
@@ -410,3 +410,66 @@ create policy "Members upload their own listing photos" on storage.objects
     and name ~ '^[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}[.](jpg|jpeg|png|webp)$'
     and private.can_upload_listing_photo()
   );
+
+
+-- Utileo account dashboard, availability and private messaging additions.
+alter table public.profiles add column if not exists public_id text;
+alter table public.listings add column if not exists available_from date;
+alter table public.listings add column if not exists available_to date;
+update public.profiles set public_id=upper(substr(encode(gen_random_bytes(8),'hex'),1,6)) where public_id is null;
+create unique index if not exists profiles_public_id_key on public.profiles(public_id);
+alter table public.profiles alter column public_id set not null;
+create or replace function public.assign_public_student_id()
+returns trigger language plpgsql set search_path='' as $$
+declare candidate text;
+begin
+ if new.public_id is null or new.public_id='' then
+  loop
+   candidate:=upper(substr(encode(gen_random_bytes(6),'hex'),1,6));
+   exit when not exists(select 1 from public.profiles where public_id=candidate);
+  end loop;
+  new.public_id:=candidate;
+ end if;
+ return new;
+end $$;
+drop trigger if exists profiles_assign_public_student_id on public.profiles;
+create trigger profiles_assign_public_student_id before insert on public.profiles for each row execute function public.assign_public_student_id();
+revoke all on function public.assign_public_student_id() from public,anon,authenticated;
+create table if not exists public.conversations (
+ id uuid primary key default gen_random_uuid(), kind text not null check(kind in ('rental','direct')),
+ booking_id uuid unique references public.booking_requests(id) on delete cascade,
+ status text not null default 'active' check(status in ('pending','active','declined','closed')),
+ created_at timestamptz not null default now(),
+ check((kind='rental' and booking_id is not null) or (kind='direct' and booking_id is null))
+);
+create table if not exists public.conversation_participants (
+ conversation_id uuid not null references public.conversations(id) on delete cascade,
+ user_id uuid not null references auth.users(id) on delete cascade,
+ primary key(conversation_id,user_id)
+);
+create table if not exists public.message_requests (
+ id uuid primary key default gen_random_uuid(),
+ sender_id uuid not null references auth.users(id) on delete cascade,
+ recipient_id uuid not null references auth.users(id) on delete cascade,
+ conversation_id uuid not null unique references public.conversations(id) on delete cascade,
+ status text not null default 'pending' check(status in ('pending','accepted','declined')),
+ created_at timestamptz not null default now(), check(sender_id<>recipient_id)
+);
+create table if not exists public.messages (
+ id uuid primary key default gen_random_uuid(),
+ conversation_id uuid not null references public.conversations(id) on delete cascade,
+ sender_id uuid not null references auth.users(id) on delete cascade,
+ body text not null check(char_length(body) between 1 and 2000),
+ created_at timestamptz not null default now()
+);
+alter table public.conversations enable row level security;
+alter table public.conversation_participants enable row level security;
+alter table public.message_requests enable row level security;
+alter table public.messages enable row level security;
+create policy "Participants read conversations" on public.conversations for select to authenticated using(exists(select 1 from public.conversation_participants p where p.conversation_id=id and p.user_id=(select auth.uid())));
+create policy "Users read own conversation membership" on public.conversation_participants for select to authenticated using(user_id=(select auth.uid()));
+create policy "Recipients read message requests" on public.message_requests for select to authenticated using(sender_id=(select auth.uid()) or recipient_id=(select auth.uid()));
+create policy "Participants read messages" on public.messages for select to authenticated using(exists(select 1 from public.conversation_participants p where p.conversation_id=conversation_id and p.user_id=(select auth.uid())) and exists(select 1 from public.conversations c where c.id=conversation_id and c.status='active'));
+create policy "Participants send messages" on public.messages for insert to authenticated with check(sender_id=(select auth.uid()) and exists(select 1 from public.conversation_participants p where p.conversation_id=conversation_id and p.user_id=(select auth.uid())) and exists(select 1 from public.conversations c where c.id=conversation_id and c.status='active'));
+grant select on public.conversations,public.conversation_participants,public.message_requests,public.messages to authenticated;
+grant insert on public.messages to authenticated;
