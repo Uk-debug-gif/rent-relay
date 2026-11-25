@@ -14,7 +14,7 @@
 <meta property="og:title" content="Utileo — Campus rentals, made simple">
 <meta property="og:description" content="Find useful things shared by students around your campus. Rent for the days you need.">
 <meta name="robots" content="index,follow">
-<link rel="stylesheet" href="styles.css?v=15">
+<link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Skip to content</a>
@@ -29,10 +29,12 @@
       <a href="#why">Why Utileo</a>
       <a href="#trust">Trust &amp; safety</a>
       <button class="mobile-menu-action" id="mobileMyRequests" type="button" hidden>My Requests</button>
+      <button class="mobile-menu-action" id="mobileProfile" type="button" hidden>My Profile</button>
       <button class="mobile-menu-action" id="mobileLogout" type="button" hidden>Sign out</button>
     </nav>
     <div class="header-actions">
       <button class="secondary" id="myRequests" type="button" hidden>My Requests</button>
+      <button class="secondary profile-trigger" id="profileTop" type="button" hidden aria-label="Open profile">◉ Profile</button>
       <button class="secondary" id="listTop" type="button">List an item</button>
       <span class="user-handle" id="userHandle" hidden aria-label="Your Utileo username"></span>
       <button class="primary" id="login" type="button">Log in / Sign up</button>
@@ -156,6 +158,8 @@
     </div>
   </section>
 
+  <section id="account" class="page hidden"><div class="wrap account-wrap"><div class="account-heading"><span class="eyebrow">YOUR UTILEO</span><h1>My Profile</h1><p>Manage your profile, listings, rentals and conversations.</p></div><div class="account-layout"><nav class="account-tabs" aria-label="Account sections"><button data-account-tab="profile" class="active">Profile</button><button data-account-tab="listings">My Listings</button><button data-account-tab="borrowed">My Borrowed Items</button><button data-account-tab="requests">Rental Requests</button><button data-account-tab="chats">Chats</button></nav><div class="account-panel" id="accountPanel">Loading your account…</div></div><button class="secondary account-signout" id="accountSignout" type="button">Sign out</button></div></section>
+
   <!-- ============ ITEM DETAIL PAGE ============ -->
   <section id="detail" class="page hidden">
     <div class="wrap" id="detailBody"></div>
@@ -176,6 +180,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.114.0"></script>
-<script src="app.js?v=29" defer></script>
+<script src="app.js?v=30" defer></script>
 </body>
 </html>
