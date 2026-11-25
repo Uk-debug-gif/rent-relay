@@ -237,10 +237,8 @@ function openItem(id) {
           <h2>${it.live && it.owner_id ? "Request this rental" : "Estimate your rental"}</h2>
           ${it.live && it.owner_id ? `<label>Message to the owner (optional)<textarea id="rentMessage" rows="2" maxlength="500" placeholder="Hi, is this item available for these dates?"></textarea></label>` : `<label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>`}
           <div class="rent-row">
-            <label>Start date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
-            <label>Rental days
-              <span class="stepper"><button type="button" id="dMinus" aria-label="Fewer days">−</button><input id="rentDays" type="number" min="1" max="30" value="1" inputmode="numeric"><button type="button" id="dPlus" aria-label="More days">+</button></span>
-            </label>
+            <label>From date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
+            <label>To date<input id="rentEnd" type="date" min="${todayISO()}" value="${todayISO()}"></label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
           ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : `<button class="primary wide" id="rentSignIn" type="button">Sign in to request this item</button>`) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
@@ -289,18 +287,17 @@ function openItem(id) {
   const signInRequest = $("rentSignIn");
   if (signInRequest) signInRequest.onclick = () => { afterLoginRequestId = it.id; openLogin("login"); };
 
-  const days = $("rentDays");
-  const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
+  const endInput = $("rentEnd");
+  const clamp = () => { const start = new Date(($("rentStart").value || todayISO())+"T00:00"); const end = new Date((endInput.value || $("rentStart").value || todayISO())+"T00:00"); let n = Math.round((end-start)/86400000)+1; if (!(n>=1)) n=1; return Math.min(n,30); };
   const update = () => {
     const n = clamp(), start = $("rentStart").value || todayISO();
-    const end = new Date(start + "T00:00"); end.setDate(end.getDate() + n);
+    const end = new Date((endInput.value || start) + "T00:00");
     $("sumLine").textContent = `${money(it.price)} × ${n} day${n > 1 ? "s" : ""}`;
     $("sumReturn").textContent = "Return by " + end.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
     $("sumTotal").textContent = money(it.price * n);
   };
-  $("dMinus").onclick = () => { days.value = clamp() - 1; update(); };
-  $("dPlus").onclick = () => { days.value = clamp() + 1; update(); };
-  days.addEventListener("input", update); days.addEventListener("change", update); $("rentStart").addEventListener("change", update);
+  $("rentStart").addEventListener("change", () => { endInput.min = $("rentStart").value; if(endInput.value < endInput.min) endInput.value=endInput.min; update(); });
+  endInput.addEventListener("change", update);
   update();
   if ($("rentBtn")) $("rentBtn").onclick = async () => {
     const name = $("rentName") ? $("rentName").value.trim() : "";
@@ -308,6 +305,8 @@ function openItem(id) {
     const startValue = $("rentStart").value;
     if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
+    if (!$("rentEnd").value || $("rentEnd").value < startValue || n > 30) { toast("Choose a valid To date within 30 days."); $("rentEnd").focus(); return; }
+    if (it.available_from && startValue < it.available_from || it.available_to && $("rentEnd").value > it.available_to) { toast("These dates are outside the owner’s availability."); return; }
     const isEstimate = !(it.live && it.owner_id);
     if (!isEstimate) { $("rentBtn").disabled = true; $("rentBtn").textContent = "Sending request…"; }
     const m = $("rentMsg"); m.className = "note ok";
@@ -724,7 +723,8 @@ function renderListForm() {
     <label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label>
     <label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label>
     <label>Item description<textarea id="listingDescription" rows="3" maxlength="500" placeholder="Describe the item, its features, size, included accessories and any existing marks"></textarea></label>
-    <label>Public pickup area<input id="listingAddress" maxlength="120" placeholder="Campus gate / common area / library"></label><p class="form-hint">Do not enter your home address, room number or flat number. Share exact handover details privately after acceptance.</p>
+    <label>Available from<input id="listingAvailableFrom" type="date" min="${todayISO()}"></label><label>Available to<input id="listingAvailableTo" type="date" min="${todayISO()}"></label><p class="form-hint">Set the dates when your item can be requested. Leave both blank for flexible availability.</p>
+     <label>Public pickup area<input id="listingAddress" maxlength="120" placeholder="Campus gate / common area / library"></label><p class="form-hint">Do not enter your home address, room number or flat number. Share exact handover details privately after acceptance.</p>
     <label>Item photo<input id="listingPhoto" type="file" accept="image/*" required></label>
     <div class="photo-preview hidden" id="photoPreview"><img id="photoPreviewImage" alt="Selected item preview"></div>
     <p class="form-hint">Upload one clear photo of your item (JPG, PNG or WebP, up to 5 MB).</p>
@@ -744,8 +744,9 @@ function renderListForm() {
     const title = $("listingName").value.trim(), category = $("listingCategory").value, subcategory = $("listingSub").value,
       price = Number($("listingPrice").value), condition = $("listingCondition").value.trim(),
       description = $("listingDescription").value.trim(), address = $("listingAddress").value.trim(),
-      photo = $("listingPhoto").files[0];
-    if (!title || title.length > 80 || !subcategory || !condition || condition.length > 60 || !description || description.length > 500 || !address || address.length > 120 || !photo || !Number.isInteger(price) || price < 1 || price > 100000) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
+      photo = $("listingPhoto").files[0], available_from=$("listingAvailableFrom").value||null, available_to=$("listingAvailableTo").value||null;
+    if ((available_from&&!available_to)||(available_to&&!available_from)||(available_from&&available_to&&available_to<available_from)) { toast("Choose both valid availability dates or leave both blank."); return; }
+     if (!title || title.length > 80 || !subcategory || !condition || condition.length > 60 || !description || description.length > 500 || !address || address.length > 120 || !photo || !Number.isInteger(price) || price < 1 || price > 100000) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
     if (needSupabase()) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
@@ -756,7 +757,7 @@ function renderListForm() {
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
     $("saveListing").textContent = "Saving listing…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, pickup_area: address, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, pickup_area: address, available_from, available_to, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
     if (error) {
       await sb.storage.from("listing-images").remove([imagePath]);
       toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
@@ -772,7 +773,7 @@ let liveListingsLoaded = false;
 async function loadLive() {
   if (!sb) { liveListingsLoaded = true; return; }
   let rows, error;
-  try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
+  try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,available_from,available_to,created_at").order("created_at", { ascending: false }).limit(200)); }
   catch (e) { console.error("Utileo: unable to load listings", e); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
   if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
@@ -781,7 +782,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
+      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", available_from:r.available_from||null, available_to:r.available_to||null, image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
   liveListingsLoaded = true;
   soft = true;
