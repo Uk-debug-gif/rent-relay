@@ -4,7 +4,7 @@
 
 const SUPABASE_URL = "https://tvtmhisivwctprqmbzbj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Y2qhEXQVAEdSD5izte37yQ_ZZGLcB9Y";
-const TERMS_VERSION = "2026-11-14"; // Keep in sync with supabase/schema.sql and terms.html.
+const TERMS_VERSION = "2026-11-25"; // Keep in sync with supabase/schema.sql and terms.html.
 const supabaseReady = !!(window.supabase && SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_"));
 const sb = supabaseReady ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -237,10 +237,8 @@ function openItem(id) {
           <h2>${it.live && it.owner_id ? "Request this rental" : "Estimate your rental"}</h2>
           ${it.live && it.owner_id ? `<label>Message to the owner (optional)<textarea id="rentMessage" rows="2" maxlength="500" placeholder="Hi, is this item available for these dates?"></textarea></label>` : `<label>Your name<input id="rentName" maxlength="60" placeholder="Enter your name" autocomplete="name"></label>`}
           <div class="rent-row">
-            <label>Start date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
-            <label>Rental days
-              <span class="stepper"><button type="button" id="dMinus" aria-label="Fewer days">−</button><input id="rentDays" type="number" min="1" max="30" value="1" inputmode="numeric"><button type="button" id="dPlus" aria-label="More days">+</button></span>
-            </label>
+            <label>From date<input id="rentStart" type="date" min="${todayISO()}" value="${todayISO()}"></label>
+            <label>To date<input id="rentEnd" type="date" min="${todayISO()}" value="${todayISO()}"></label>
           </div>
           <div class="summary"><div><span id="sumLine"></span><small id="sumReturn"></small></div><b id="sumTotal"></b></div>
           ${it.live && it.owner_id ? (currentSession?.user?.id ? (currentSession.user.id === it.owner_id ? `<p class="note">This is your listing. Other signed-in students can send you a rental request.</p>` : `<button class="primary wide" id="rentBtn" type="button">Send rental request</button>`) : `<button class="primary wide" id="rentSignIn" type="button">Sign in to request this item</button>`) : `<button class="primary wide" id="rentBtn" type="button">Calculate rental total</button>`}
@@ -289,18 +287,17 @@ function openItem(id) {
   const signInRequest = $("rentSignIn");
   if (signInRequest) signInRequest.onclick = () => { afterLoginRequestId = it.id; openLogin("login"); };
 
-  const days = $("rentDays");
-  const clamp = () => { let n = parseInt(days.value, 10); if (!(n >= 1)) n = 1; if (n > 30) n = 30; days.value = n; return n; };
+  const endInput = $("rentEnd");
+  const clamp = () => { const start = new Date(($("rentStart").value || todayISO())+"T00:00"); const end = new Date((endInput.value || $("rentStart").value || todayISO())+"T00:00"); let n = Math.round((end-start)/86400000)+1; if (!(n>=1)) n=1; return Math.min(n,30); };
   const update = () => {
     const n = clamp(), start = $("rentStart").value || todayISO();
-    const end = new Date(start + "T00:00"); end.setDate(end.getDate() + n);
+    const end = new Date((endInput.value || start) + "T00:00");
     $("sumLine").textContent = `${money(it.price)} × ${n} day${n > 1 ? "s" : ""}`;
     $("sumReturn").textContent = "Return by " + end.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
     $("sumTotal").textContent = money(it.price * n);
   };
-  $("dMinus").onclick = () => { days.value = clamp() - 1; update(); };
-  $("dPlus").onclick = () => { days.value = clamp() + 1; update(); };
-  days.addEventListener("input", update); days.addEventListener("change", update); $("rentStart").addEventListener("change", update);
+  $("rentStart").addEventListener("change", () => { endInput.min = $("rentStart").value; if(endInput.value < endInput.min) endInput.value=endInput.min; update(); });
+  endInput.addEventListener("change", update);
   update();
   if ($("rentBtn")) $("rentBtn").onclick = async () => {
     const name = $("rentName") ? $("rentName").value.trim() : "";
@@ -308,6 +305,8 @@ function openItem(id) {
     const startValue = $("rentStart").value;
     if (!startValue || startValue < todayISO()) { toast("Choose today or a future start date."); $("rentStart").focus(); return; }
     const n = clamp();
+    if (!$("rentEnd").value || $("rentEnd").value < startValue || n > 30) { toast("Choose a valid To date within 30 days."); $("rentEnd").focus(); return; }
+    if (it.available_from && startValue < it.available_from || it.available_to && $("rentEnd").value > it.available_to) { toast("These dates are outside the owner’s availability."); return; }
     const isEstimate = !(it.live && it.owner_id);
     if (!isEstimate) { $("rentBtn").disabled = true; $("rentBtn").textContent = "Sending request…"; }
     const m = $("rentMsg"); m.className = "note ok";
@@ -333,7 +332,7 @@ function openItem(id) {
 
 /* ---------- Routing ---------- */
 function show(view) {
-  ["home", "catalog", "detail"].forEach(v => $(v).classList.toggle("hidden", v !== view));
+  ["home", "catalog", "detail", "account"].forEach(v => $(v).classList.toggle("hidden", v !== view));
 }
 function toTop() { if (!soft) window.scrollTo({ top: 0, behavior: "instant" }); }
 
@@ -353,6 +352,7 @@ function route() {
     if (p[0] === "c") return catById(p[1]) ? openCategory(p[1], p[2]) : openHome();
     if (p[0] === "i" && p[1]) return openItem(p[1]);
     if (p[0] === "search") return openSearch(p[1] || "");
+    if (p[0] === "account") return openAccountPage(p[1] || "profile");
     return openHome();
   }
   openHome(raw);
@@ -416,7 +416,10 @@ function setAuthUI(session) {
     }
   }
   if ($("myRequests")) $("myRequests").hidden = !currentSession;
+  if ($("profileTop")) $("profileTop").hidden = !currentSession;
+  if ($("mobileProfile")) $("mobileProfile").hidden = !currentSession;
   if ($("mobileMyRequests")) $("mobileMyRequests").hidden = !currentSession;
+  if (authStateChanged && !currentSession && location.hash.startsWith("#/account")) location.hash = "#";
   if ($("mobileLogout")) $("mobileLogout").hidden = !currentSession;
   // Rebuild only when signed-in identity actually changes; token refreshes must
   // not destroy in-progress item form fields or scroll position.
@@ -594,6 +597,9 @@ async function showWelcome(user) {
 
 $("login").onclick = () => openLogin("login");
 if ($("myRequests")) $("myRequests").onclick = openRequestBox;
+if ($("profileTop")) $("profileTop").onclick = () => { location.hash = "#/account/profile"; };
+if ($("mobileProfile")) $("mobileProfile").onclick = () => { $("mainNav").classList.remove("open"); location.hash = "#/account/profile"; };
+if ($("accountSignout")) $("accountSignout").onclick = () => $("logout").click();
 if ($("mobileMyRequests")) $("mobileMyRequests").onclick = () => { $("mainNav").classList.remove("open"); openRequestBox(); };
 if ($("mobileLogout")) $("mobileLogout").onclick = () => { $("mainNav").classList.remove("open"); $("logout").click(); };
 $("logout").onclick = async () => {
@@ -640,6 +646,70 @@ async function openRequestBox() {
     target.innerHTML = `<p>Lender: ${esc(c.owner_name)} · <a href="tel:${esc(c.owner_mobile || "")}">${esc(c.owner_mobile || "No number saved")}</a></p><p>Renter: ${esc(c.renter_name)} · <a href="tel:${esc(c.renter_mobile || "")}">${esc(c.renter_mobile || "No number saved")}</a></p>`;
   });
 }
+
+/* ---------- Signed-in account dashboard ---------- */
+let activeAccountTab = "profile";
+async function openAccountPage(tab="profile") {
+  if (!currentSession?.user?.id) { openLogin("login"); return; }
+  activeAccountTab = ["profile","listings","borrowed","requests","chats"].includes(tab) ? tab : "profile";
+  show("account"); document.title = "My Utileo | Utileo";
+  document.querySelectorAll("[data-account-tab]").forEach(b=>b.classList.toggle("active",b.dataset.accountTab===activeAccountTab));
+  const host=$("accountPanel"); host.innerHTML="<p>Loading…</p>";
+  document.querySelectorAll("[data-account-tab]").forEach(b=>b.onclick=()=>openAccountPage(b.dataset.accountTab));
+  if(activeAccountTab==="profile"){
+    const {data,error}=await sb.from("profiles").select("username,public_id,full_name,email").eq("id",currentSession.user.id).maybeSingle();
+    if(error||!data){host.innerHTML="<p>Could not load your profile.</p>";return;}
+    host.innerHTML=`<h2>Profile details</h2><p class="muted">Your public Student ID can be shared to receive message requests. Email and mobile remain private.</p><label>Full name<input id="profileName" maxlength="60" value="${esc(data.full_name||"")}"></label><label>Email<input value="${esc(data.email||currentSession.user.email||"")}" disabled></label><label>Student ID<input value="${esc(data.public_id||data.username||"")}" readonly></label><button class="primary" id="saveProfile">Save profile</button><p class="form-hint">Student ID is unique and cannot be edited.</p>`;
+    $("saveProfile").onclick=async()=>{const full_name=$("profileName").value.trim();if(!full_name){toast("Enter your name.");return;}const {error}=await sb.from("profiles").update({full_name}).eq("id",currentSession.user.id);if(error){toast("Profile could not be updated.");return;}toast("Profile updated.");};
+  } else if(activeAccountTab==="listings" || activeAccountTab==="borrowed"){
+    const own=activeAccountTab==="listings";
+    let q=sb.from("listings").select("id,title,price_per_day,created_at,available_from,available_to").order("created_at",{ascending:false});
+    if(own) q=q.eq("owner_id",currentSession.user.id);
+    const {data,error}=await q.limit(100);
+    if(error){host.textContent="Could not load items.";return;}
+    let rows=data||[];
+    if(!own){
+      const {data:req}=await sb.from("booking_requests").select("listing_id,status,start_date,rental_days").eq("renter_id",currentSession.user.id).order("created_at",{ascending:false});
+      const ids=[...new Set((req||[]).map(x=>x.listing_id))];
+      const {data:items}=ids.length?await sb.from("listings").select("id,title,price_per_day").in("id",ids):{data:[]};
+      const map=Object.fromEntries((items||[]).map(x=>[x.id,x]));
+      rows=(req||[]).map(x=>({...map[x.listing_id],...x})).filter(x=>x.id);
+    }
+    host.innerHTML=rows.length?rows.map(x=>`<article class="account-item"><b>${esc(x.title||"Item")}</b><p>${own?("₹"+Number(x.price_per_day||0)+"/day · Availability: "+(x.available_from||"Not set")+" to "+(x.available_to||"Not set")):(esc(x.start_date)+" · "+x.rental_days+" day(s) · "+esc(x.status))}</p>${own?`<a href="#/i/live-${esc(x.id)}">View listing →</a>`:""}</article>`).join(""):"<p>No items to show yet.</p>";
+  } else if(activeAccountTab==="requests"){
+    const {data,error}=await sb.from("booking_requests").select("id,listing_id,status,start_date,rental_days,message,renter_id").order("created_at",{ascending:false}).limit(100);
+    if(error){host.textContent="Could not load rental requests.";return;}
+    const ids=[...new Set((data||[]).map(x=>x.listing_id))];
+    const {data:listings}=ids.length?await sb.from("listings").select("id,title,owner_id").in("id",ids):{data:[]};
+    const map=Object.fromEntries((listings||[]).map(x=>[x.id,x]));
+    host.innerHTML=(data||[]).length?(data||[]).map(x=>{const l=map[x.listing_id]||{};const incoming=l.owner_id===currentSession.user.id;return `<article class="account-item"><b>${esc(l.title||"Rental item")}</b><p>${incoming?"Received":"Sent"} · ${esc(x.start_date)} · ${x.rental_days} day(s) · ${esc(x.status)}</p>${incoming&&x.status==="pending"?`<button class="primary" data-accept="${esc(x.id)}">Accept</button> <button class="secondary" data-decline="${esc(x.id)}">Decline</button>`:""}${x.status==="accepted"?`<button class="secondary" data-open-rental-chat="${esc(x.id)}">Open rental chat</button>`:""}</article>`;}).join(""):"<p>No rental requests yet.</p>";
+    host.querySelectorAll("[data-accept],[data-decline]").forEach(b=>b.onclick=async()=>{const status=b.dataset.accept?"accepted":"declined";const {error}=await sb.from("booking_requests").update({status,updated_at:new Date().toISOString()}).eq("id",b.dataset.accept||b.dataset.decline);if(error){toast("Could not update request.");return;}toast("Request "+status+".");openAccountPage("requests");});
+    host.querySelectorAll("[data-open-rental-chat]").forEach(b=>b.onclick=()=>openChatForBooking(b.dataset.openRentalChat));
+  } else if(activeAccountTab==="chats"){
+    const {data:parts,error}=await sb.from("conversation_participants").select("conversation_id").eq("user_id",currentSession.user.id);
+    if(error){host.textContent="Could not load chats.";return;}
+    const ids=(parts||[]).map(x=>x.conversation_id);
+    const {data:convs}=ids.length?await sb.from("conversations").select("id,kind,status,created_at").in("id",ids).order("created_at",{ascending:false}):{data:[]};
+    const {data:requests}=await sb.from("message_requests").select("id,sender_id,recipient_id,conversation_id,status").eq("recipient_id",currentSession.user.id).eq("status","pending");
+    host.innerHTML=`<h2>Message requests</h2>${(requests||[]).map(x=>`<article class="account-item"><b>New student message request</b><p>Request ID: ${esc(x.id.slice(0,8))}</p><button class="primary" data-msg-accept="${esc(x.id)}">Accept</button> <button class="secondary" data-msg-decline="${esc(x.id)}">Decline</button></article>`).join("")||"<p>No pending message requests.</p>"}<h2>Your chats</h2><label>Start a chat using Student ID<input id="targetStudentId" maxlength="6" placeholder="e.g. X7K9P2"></label><button class="primary" id="sendMessageRequest">Send message request</button>${(convs||[]).filter(c=>c.status==="active").map(c=>`<article class="account-item"><b>${c.kind==="rental"?"Rental chat":"Student chat"}</b><p>${esc(c.created_at.slice(0,10))}</p><button class="secondary" data-chat="${esc(c.id)}">Open chat</button></article>`).join("")||"<p>No active chats yet.</p>"}<div id="chatWindow"></div>`;
+    $("sendMessageRequest").onclick=async()=>{const id=$("targetStudentId").value.trim().toUpperCase();if(!/^[A-Z0-9]{6}$/.test(id)){toast("Enter a valid 6-character Student ID.");return;}const {error}=await sb.rpc("send_message_request",{p_public_id:id});if(error){toast(error.message||"Could not send request.");return;}toast("Message request sent.");openAccountPage("chats");};
+    host.querySelectorAll("[data-msg-accept],[data-msg-decline]").forEach(b=>b.onclick=async()=>{const {error}=await sb.rpc("respond_message_request",{p_request_id:b.dataset.msgAccept||b.dataset.msgDecline,p_accept:!!b.dataset.msgAccept});if(error){toast("Could not update request.");return;}openAccountPage("chats");});
+    host.querySelectorAll("[data-chat]").forEach(b=>b.onclick=()=>openChat(b.dataset.chat));
+  }
+}
+async function openChatForBooking(bookingId){
+ const {data}=await sb.from("conversations").select("id").eq("booking_id",bookingId).maybeSingle();
+ if(data?.id){location.hash="#/account/chats";setTimeout(()=>openChat(data.id),250);}else toast("Chat is available after the booking is accepted.");
+}
+async function openChat(id){
+ const host=$("accountPanel");if(!host)return;
+ const {data:messages,error}=await sb.from("messages").select("id,sender_id,body,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(200);
+ if(error){toast("Could not load messages.");return;}
+ const current= currentSession.user.id;
+ host.insertAdjacentHTML("beforeend",`<section class="chat-box"><h3>Private chat</h3><div class="chat-messages" id="chatMessages">${(messages||[]).map(m=>`<p class="${m.sender_id===current?"mine":"theirs"}">${esc(m.body)}<small>${esc(m.created_at.slice(0,16).replace("T"," "))}</small></p>`).join("")}</div><form id="chatSend"><input id="chatText" maxlength="2000" placeholder="Write a message…" required><button class="primary">Send</button></form></section>`);
+ $("chatSend").onsubmit=async e=>{e.preventDefault();const body=$("chatText").value.trim();if(!body)return;const {error}=await sb.from("messages").insert({conversation_id:id,sender_id:current,body});if(error){toast("Message could not be sent.");return;}openChat(id);};
+}
+
 /* ---------- List an item ---------- */
 function listItem() {
   renderListForm();
@@ -653,7 +723,8 @@ function renderListForm() {
     <label>Price per day (₹)<input id="listingPrice" type="number" min="1" max="100000" placeholder="25"></label>
     <label>Condition<input id="listingCondition" maxlength="60" placeholder="Good condition"></label>
     <label>Item description<textarea id="listingDescription" rows="3" maxlength="500" placeholder="Describe the item, its features, size, included accessories and any existing marks"></textarea></label>
-    <label>Public pickup area<input id="listingAddress" maxlength="120" placeholder="Campus gate / common area / library"></label><p class="form-hint">Do not enter your home address, room number or flat number. Share exact handover details privately after acceptance.</p>
+    <label>Available from<input id="listingAvailableFrom" type="date" min="${todayISO()}"></label><label>Available to<input id="listingAvailableTo" type="date" min="${todayISO()}"></label><p class="form-hint">Set the dates when your item can be requested. Leave both blank for flexible availability.</p>
+     <label>Public pickup area<input id="listingAddress" maxlength="120" placeholder="Campus gate / common area / library"></label><p class="form-hint">Do not enter your home address, room number or flat number. Share exact handover details privately after acceptance.</p>
     <label>Item photo<input id="listingPhoto" type="file" accept="image/*" required></label>
     <div class="photo-preview hidden" id="photoPreview"><img id="photoPreviewImage" alt="Selected item preview"></div>
     <p class="form-hint">Upload one clear photo of your item (JPG, PNG or WebP, up to 5 MB).</p>
@@ -673,8 +744,9 @@ function renderListForm() {
     const title = $("listingName").value.trim(), category = $("listingCategory").value, subcategory = $("listingSub").value,
       price = Number($("listingPrice").value), condition = $("listingCondition").value.trim(),
       description = $("listingDescription").value.trim(), address = $("listingAddress").value.trim(),
-      photo = $("listingPhoto").files[0];
-    if (!title || title.length > 80 || !subcategory || !condition || condition.length > 60 || !description || description.length > 500 || !address || address.length > 120 || !photo || !Number.isInteger(price) || price < 1 || price > 100000) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
+      photo = $("listingPhoto").files[0], available_from=$("listingAvailableFrom").value||null, available_to=$("listingAvailableTo").value||null;
+    if ((available_from&&!available_to)||(available_to&&!available_from)||(available_from&&available_to&&available_to<available_from)) { toast("Choose both valid availability dates or leave both blank."); return; }
+     if (!title || title.length > 80 || !subcategory || !condition || condition.length > 60 || !description || description.length > 500 || !address || address.length > 120 || !photo || !Number.isInteger(price) || price < 1 || price > 100000) { toast("Please complete all details, add a pickup location and upload an item photo."); return; }
     if (needSupabase()) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB."); return; }
     $("saveListing").disabled = true; $("saveListing").textContent = "Uploading photo…";
@@ -685,7 +757,7 @@ function renderListForm() {
     if (uploadError) { toast("Photo upload failed: " + uploadError.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return; }
     const { data: publicImage } = sb.storage.from("listing-images").getPublicUrl(imagePath);
     $("saveListing").textContent = "Saving listing…";
-    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, pickup_area: address, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
+    const { error } = await sb.from("listings").insert({ title, category, subcategory, price_per_day: price, condition, description, pickup_area: address, available_from, available_to, image_url: publicImage.publicUrl, owner_id: currentSession.user.id });
     if (error) {
       await sb.storage.from("listing-images").remove([imagePath]);
       toast("Listing save failed: " + error.message); $("saveListing").disabled = false; $("saveListing").textContent = "Submit listing"; return;
@@ -701,7 +773,7 @@ let liveListingsLoaded = false;
 async function loadLive() {
   if (!sb) { liveListingsLoaded = true; return; }
   let rows, error;
-  try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,created_at").order("created_at", { ascending: false }).limit(200)); }
+  try { ({ data: rows, error } = await sb.from("listings").select("id,owner_id,title,category,subcategory,price_per_day,condition,description,image_url,pickup_area,available_from,available_to,created_at").order("created_at", { ascending: false }).limit(200)); }
   catch (e) { console.error("Utileo: unable to load listings", e); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
   if (error || !rows) { if (error) console.error("Utileo: listings query failed", error); liveListingsLoaded = true; soft = true; try { route(); } finally { soft = false; } return; }
   for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].live) ITEMS.splice(i, 1);
@@ -710,7 +782,7 @@ async function loadLive() {
     if (!cat) return;
     if (!cat.subs.some(s => s.name === r.subcategory)) cat.subs.push({ name: r.subcategory, emoji: cat.emoji });
     ITEMS.push({ id: "live-" + r.id, cat: cat.id, sub: r.subcategory, title: r.title, emoji: cat.emoji, price: Number(r.price_per_day) || 0, cond: r.condition, live: true,
-      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
+      desc: r.description || "Community listing. Meet the lister to inspect the item before any rental.", address: r.pickup_area || "", available_from:r.available_from||null, available_to:r.available_to||null, image_url: r.image_url || "", created_at: r.created_at || "", owner_id: r.owner_id || null });
   });
   liveListingsLoaded = true;
   soft = true;
